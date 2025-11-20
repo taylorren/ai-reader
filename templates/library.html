@@ -9,33 +9,267 @@
         .container { max-width: 800px; margin: 0 auto; }
         h1 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
         .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
-        .book-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .book-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: transform 0.2s; position: relative; display: flex; flex-direction: column; }
+        .book-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        .book-cover { width: 100%; height: 200px; object-fit: cover; border-radius: 4px; margin-bottom: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3em; }
+        .book-cover img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+        .book-info { flex-grow: 1; margin-bottom: 15px; }
         .book-title { font-size: 1.2em; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
         .book-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
-        .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9em; }
+        .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9em; border: none; cursor: pointer; text-align: center; }
         .btn:hover { background: #2980b9; }
+        .book-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+        .book-actions .btn { flex: 1; }
+        
+        /* Dropdown Menu */
+        .menu-btn { background: #e9ecef; color: #333; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 1.2em; line-height: 1; position: relative; }
+        .menu-btn:hover { background: #dee2e6; }
+        .dropdown-menu { position: absolute; bottom: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 150px; display: none; z-index: 100; margin-bottom: 5px; }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 0.9em; color: #333; }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: #f8f9fa; }
+        .dropdown-item.danger { color: #e74c3c; }
+        .dropdown-item.danger:hover { background: #ffebee; }
+        
+        /* Add Book Card */
+        .add-book-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px dashed #3498db; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; cursor: pointer; transition: all 0.2s; }
+        .add-book-card:hover { border-color: #2980b9; background: #f8f9fa; transform: translateY(-2px); }
+        .add-icon { font-size: 4em; color: #3498db; margin-bottom: 10px; }
+        .add-text { color: #666; font-size: 1em; text-align: center; }
+        #file-input { display: none; }
+        
+        /* Upload Progress */
+        .upload-status { margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; display: none; }
+        .upload-status.show { display: block; }
+        .upload-status.success { background: #e8f5e9; color: #2e7d32; }
+        .upload-status.error { background: #ffebee; color: #c62828; }
+        .progress-bar { width: 100%; height: 4px; background: #ddd; border-radius: 2px; margin-top: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #3498db; width: 0%; transition: width 0.3s; }
+        
+        /* Search Bar */
+        .search-container { position: relative; margin: 20px 0 30px 0; }
+        .search-input { width: 100%; padding: 12px 45px 12px 15px; font-size: 1em; border: 2px solid #ddd; border-radius: 8px; transition: border-color 0.2s; }
+        .search-input:focus { outline: none; border-color: #3498db; }
+        .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 1.2em; color: #999; pointer-events: none; }
+        .book-card.hidden { display: none; }
+        .no-results { text-align: center; padding: 40px; color: #999; font-size: 1.1em; grid-column: 1 / -1; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Library</h1>
 
-        {% if not books %}
-            <p>No processed books found. Run <code>reader3.py</code> on an epub first.</p>
-        {% endif %}
+        <!-- Search Bar -->
+        <div class="search-container">
+            <input type="text" id="search-input" class="search-input" placeholder="Search books by title or author..." onkeyup="filterBooks()">
+            <span class="search-icon">🔍</span>
+        </div>
+
+        <div id="upload-status" class="upload-status">
+            <div id="status-message"></div>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
 
         <div class="book-grid">
+            <!-- Existing Books -->
             {% for book in books %}
-            <div class="book-card">
-                <div class="book-title">{{ book.title }}</div>
-                <div class="book-meta">
-                    {{ book.author }}<br>
-                    {{ book.chapters }} sections
+            <div class="book-card" data-book-id="{{ book.id }}">
+                <div class="book-cover">
+                    {% if book.cover %}
+                    <img src="/read/{{ book.id }}/images/{{ book.cover }}" alt="{{ book.title }}" onerror="this.parentElement.innerHTML='📚'">
+                    {% else %}
+                    📚
+                    {% endif %}
                 </div>
-                <a href="/read/{{ book.id }}/0" class="btn">Read Book</a>
+                <div class="book-info">
+                    <div class="book-title">{{ book.title }}</div>
+                    <div class="book-meta">
+                        {{ book.author }}<br>
+                        {{ book.chapters }} sections
+                        {% if book.folder_suffix %}
+                        <br><small style="color: #999;">{{ book.folder_suffix }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="book-actions">
+                    <a href="/read/{{ book.id }}/0" class="btn">Read Book</a>
+                    <div style="position: relative;">
+                        <button class="menu-btn" onclick="toggleMenu('{{ book.id }}', event)">⋮</button>
+                        <div id="menu-{{ book.id }}" class="dropdown-menu">
+                            <div class="dropdown-item" onclick="viewHighlights('{{ book.id }}', event)">📝 View Highlights</div>
+                            <div class="dropdown-item danger" onclick="deleteBook('{{ book.id }}', event)">Delete Book</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             {% endfor %}
+
+            <!-- Add Book Card (Last) -->
+            <div class="add-book-card" onclick="document.getElementById('file-input').click()">
+                <div class="add-icon">+</div>
+                <div class="add-text">Add New Book<br><small>Click to upload EPUB</small></div>
+            </div>
+            <input type="file" id="file-input" accept=".epub" onchange="handleFileUpload(event)">
         </div>
     </div>
+
+    <script>
+        function filterBooks() {
+            const searchInput = document.getElementById('search-input');
+            const searchTerm = searchInput.value.toLowerCase();
+            const bookCards = document.querySelectorAll('.book-card:not(.add-book-card)');
+            let visibleCount = 0;
+
+            bookCards.forEach(card => {
+                const title = card.querySelector('.book-title').textContent.toLowerCase();
+                const meta = card.querySelector('.book-meta').textContent.toLowerCase();
+                
+                if (title.includes(searchTerm) || meta.includes(searchTerm)) {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+
+            // Show/hide "no results" message
+            let noResultsMsg = document.getElementById('no-results-msg');
+            if (visibleCount === 0 && searchTerm !== '') {
+                if (!noResultsMsg) {
+                    noResultsMsg = document.createElement('div');
+                    noResultsMsg.id = 'no-results-msg';
+                    noResultsMsg.className = 'no-results';
+                    noResultsMsg.textContent = 'No books found matching "' + searchInput.value + '"';
+                    document.querySelector('.book-grid').appendChild(noResultsMsg);
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        }
+
+        function toggleMenu(bookId, event) {
+            event.stopPropagation();
+            const menu = document.getElementById(`menu-${bookId}`);
+            
+            // Close all other menus
+            document.querySelectorAll('.dropdown-menu').forEach(m => {
+                if (m.id !== `menu-${bookId}`) {
+                    m.classList.remove('show');
+                }
+            });
+            
+            menu.classList.toggle('show');
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.menu-btn')) {
+                document.querySelectorAll('.dropdown-menu').forEach(m => {
+                    m.classList.remove('show');
+                });
+            }
+        });
+
+        function viewHighlights(bookId, event) {
+            event.stopPropagation();
+            
+            // Close the menu
+            document.getElementById(`menu-${bookId}`).classList.remove('show');
+            
+            // Navigate to highlights view
+            window.location.href = `/highlights/${bookId}`;
+        }
+
+        async function deleteBook(bookId, event) {
+            event.stopPropagation();
+            
+            // Close the menu
+            document.getElementById(`menu-${bookId}`).classList.remove('show');
+            
+            if (!confirm(`Delete "${bookId}"?\n\nNote: Your highlights and AI analyses will be kept in the database.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/delete/${bookId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Remove the card from UI
+                    const card = document.querySelector(`[data-book-id="${bookId}"]`);
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.8)';
+                    setTimeout(() => card.remove(), 300);
+                    
+                    // Show success message
+                    const statusDiv = document.getElementById('upload-status');
+                    const statusMessage = document.getElementById('status-message');
+                    statusDiv.className = 'upload-status show success';
+                    statusMessage.textContent = `✓ ${result.message}`;
+                    setTimeout(() => {
+                        statusDiv.className = 'upload-status';
+                    }, 3000);
+                } else {
+                    alert(`Error: ${result.detail || 'Failed to delete book'}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusDiv = document.getElementById('upload-status');
+            const statusMessage = document.getElementById('status-message');
+            const progressFill = document.getElementById('progress-fill');
+
+            // Show upload status
+            statusDiv.className = 'upload-status show';
+            statusMessage.textContent = `Uploading ${file.name}...`;
+            progressFill.style.width = '30%';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    progressFill.style.width = '100%';
+                    statusDiv.className = 'upload-status show success';
+                    statusMessage.textContent = `✓ ${result.message}`;
+                    
+                    // Reload page after 2 seconds
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    statusDiv.className = 'upload-status show error';
+                    statusMessage.textContent = `✗ Error: ${result.detail || 'Upload failed'}`;
+                    progressFill.style.width = '0%';
+                }
+            } catch (error) {
+                statusDiv.className = 'upload-status show error';
+                statusMessage.textContent = `✗ Error: ${error.message}`;
+                progressFill.style.width = '0%';
+            }
+
+            // Reset file input
+            event.target.value = '';
+        }
+    </script>
 </body>
 </html>

@@ -12,3 +12,30 @@ wheels/
 # Custom
 *_data/
 *.epub
+
+# Books directory (but keep the folder structure)
+books/*
+!books/.gitkeep
+
+# Temp directory for uploads
+temp/
+
+# AI Features & Data
+.env
+reader_data.db
+test.db
+
+# Backup files
+backups/
+*.db.backup
+
+# Export files
+reader_data_*.json
+highlights_*.csv
+ai_analyses_*.csv
+report_*.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

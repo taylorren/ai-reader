@@ -2,19 +2,74 @@ import os
 import pickle
 from functools import lru_cache
 from typing import Optional
+from datetime import datetime
+from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+import shutil
+import subprocess
 
 from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
+from database import Database, Highlight, AIAnalysis
+from ai_service import AIService
+
+# Load .env file at startup
+def load_env():
+    """Load environment variables from .env file."""
+    env_path = Path(".env")
+    if env_path.exists():
+        print("Loading .env file...")
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+        print(f"✓ Loaded API configuration: {os.getenv('OPENAI_BASE_URL', 'Not set')}")
+    else:
+        print("⚠ Warning: .env file not found. AI features will not work.")
+
+load_env()
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+# Initialize database and AI service
+db = Database()
+ai_service = None  # Will be initialized on first use
+
+def get_ai_service():
+    """Lazy initialization of AI service."""
+    global ai_service
+    if ai_service is None:
+        try:
+            ai_service = AIService()
+        except ValueError as e:
+            print(f"Warning: {e}")
+    return ai_service
+
+
+# Request models
+class HighlightRequest(BaseModel):
+    book_id: str
+    chapter_index: int
+    selected_text: str
+    context_before: str = ""
+    context_after: str = ""
+
+
+class AIRequest(BaseModel):
+    highlight_id: int
+    analysis_type: str  # 'fact_check' or 'discussion'
+    selected_text: str
+    context: str = ""
+
 # Where are the book folders located?
-BOOKS_DIR = "."
+BOOKS_DIR = "books"
 
 @lru_cache(maxsize=10)
 def load_book_cached(folder_name: str) -> Optional[Book]:
@@ -39,20 +94,32 @@ async def library_view(request: Request):
     """Lists all available processed books."""
     books = []
 
-    # Scan directory for folders ending in '_data' that have a book.pkl
-    if os.path.exists(BOOKS_DIR):
-        for item in os.listdir(BOOKS_DIR):
-            if item.endswith("_data") and os.path.isdir(item):
-                # Try to load it to get the title
-                book = load_book_cached(item)
-                if book:
-                    books.append({
-                        "id": item,
-                        "title": book.metadata.title,
-                        "author": ", ".join(book.metadata.authors),
-                        "chapters": len(book.spine)
-                    })
+    # Create books directory if it doesn't exist
+    os.makedirs(BOOKS_DIR, exist_ok=True)
 
+    # Scan directory for folders ending in '_data' that have a book.pkl
+    for item in os.listdir(BOOKS_DIR):
+        item_path = os.path.join(BOOKS_DIR, item)
+        # Check if it's a directory and ends with '_data' (including _data_1, _data_2, etc.)
+        if os.path.isdir(item_path) and "_data" in item:
+            # Try to load it to get the title
+            book = load_book_cached(item)
+            if book:
+                # Extract folder suffix if it exists (e.g., "_1", "_2")
+                folder_suffix = None
+                # Check if there's a number after _data
+                if "_data_" in item:
+                    suffix_num = item.split("_data_")[-1]
+                    folder_suffix = f"Copy {suffix_num}"
+                
+                books.append({
+                    "id": item,
+                    "title": book.metadata.title,
+                    "author": ", ".join(book.metadata.authors),
+                    "chapters": len(book.spine),
+                    "folder_suffix": folder_suffix,
+                    "cover": book.cover_image if hasattr(book, 'cover_image') else None
+                })
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
@@ -103,6 +170,233 @@ async def serve_image(book_id: str, image_name: str):
         raise HTTPException(status_code=404, detail="Image not found")
 
     return FileResponse(img_path)
+
+
+# AI-related endpoints
+
+@app.post("/api/highlight")
+async def create_highlight(req: HighlightRequest):
+    """Save a user highlight."""
+    highlight = Highlight(
+        book_id=req.book_id,
+        chapter_index=req.chapter_index,
+        selected_text=req.selected_text,
+        context_before=req.context_before,
+        context_after=req.context_after,
+        created_at=datetime.now().isoformat()
+    )
+    
+    highlight_id = db.save_highlight(highlight)
+    return {"highlight_id": highlight_id, "status": "success"}
+
+
+@app.post("/api/ai/analyze")
+async def analyze_text(req: AIRequest):
+    """Perform AI analysis (fact-check or discussion) without saving."""
+    service = get_ai_service()
+    if not service:
+        raise HTTPException(status_code=500, detail="AI service not configured. Please set OPENAI_API_KEY.")
+    
+    # Call appropriate AI function
+    if req.analysis_type == "fact_check":
+        response = await service.fact_check(req.selected_text, req.context)
+    elif req.analysis_type == "discussion":
+        response = await service.discuss(req.selected_text, req.context)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid analysis type")
+    
+    return {
+        "response": response,
+        "status": "success"
+    }
+
+
+class SaveAnalysisRequest(BaseModel):
+    highlight_id: int
+    analysis_type: str
+    prompt: str
+    response: str
+
+
+@app.post("/api/ai/save")
+async def save_analysis(req: SaveAnalysisRequest):
+    """Save AI analysis to database."""
+    analysis = AIAnalysis(
+        highlight_id=req.highlight_id,
+        analysis_type=req.analysis_type,
+        prompt=req.prompt,
+        response=req.response,
+        created_at=datetime.now().isoformat()
+    )
+    
+    analysis_id = db.save_analysis(analysis)
+    
+    return {
+        "analysis_id": analysis_id,
+        "status": "success"
+    }
+
+
+@app.get("/api/highlights/{book_id}/{chapter_index}")
+async def get_highlights(book_id: str, chapter_index: int):
+    """Get all highlights for a chapter."""
+    highlights = db.get_highlights_for_chapter(book_id, chapter_index)
+    
+    # Attach analyses to each highlight
+    for highlight in highlights:
+        highlight["analyses"] = db.get_analyses_for_highlight(highlight["id"])
+    
+    return {"highlights": highlights}
+
+
+@app.get("/highlights/{book_id}")
+async def view_highlights(book_id: str, request: Request):
+    """View all highlights for a book."""
+    try:
+        # Get all highlights for this book
+        all_highlights = db.get_all_highlights_for_book(book_id)
+        
+        # Attach analyses and flatten
+        highlights_with_analyses = []
+        for highlight in all_highlights:
+            analyses = db.get_analyses_for_highlight(highlight["id"])
+            if analyses:
+                for analysis in analyses:
+                    highlights_with_analyses.append({
+                        **highlight,
+                        "analysis_type": analysis["analysis_type"],
+                        "response": analysis["response"],
+                        "analysis_created_at": analysis["created_at"]
+                    })
+            else:
+                # Highlight without analysis
+                highlights_with_analyses.append({
+                    **highlight,
+                    "analysis_type": None,
+                    "response": None,
+                    "analysis_created_at": None
+                })
+        
+        # Sort by creation date (newest first)
+        highlights_with_analyses.sort(key=lambda x: x["created_at"], reverse=True)
+        
+        # Calculate stats
+        stats = {
+            "total": len(highlights_with_analyses),
+            "fact_check": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "fact_check"),
+            "discussion": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "discussion"),
+            "comment": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "comment")
+        }
+        
+        # Get book title
+        book_title = book_id.replace("_data", "").replace("_", " ")
+        
+        return templates.TemplateResponse("highlights.html", {
+            "request": request,
+            "book_id": book_id,
+            "book_title": book_title,
+            "highlights": highlights_with_analyses,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/ai/update/{analysis_id}")
+async def update_analysis(analysis_id: int, req: dict):
+    """Update an existing analysis (for editing comments)."""
+    try:
+        db.update_analysis(analysis_id, req.get("response", ""))
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/ai/delete/{analysis_id}")
+async def delete_analysis(analysis_id: int):
+    """Delete an analysis (and its highlight if no other analyses exist)."""
+    try:
+        db.delete_analysis(analysis_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/delete/{book_id}")
+async def delete_book(book_id: str):
+    """Delete a book folder (but keep database entries)."""
+    try:
+        # Security check: ensure book_id doesn't contain path traversal
+        if ".." in book_id or "/" in book_id or "\\" in book_id:
+            raise HTTPException(status_code=400, detail="Invalid book ID")
+        
+        book_path = os.path.join(BOOKS_DIR, book_id)
+        
+        if not os.path.exists(book_path):
+            raise HTTPException(status_code=404, detail="Book not found")
+        
+        # Delete the book folder
+        shutil.rmtree(book_path)
+        
+        # Clear cache for this book
+        load_book_cached.cache_clear()
+        
+        return {
+            "message": f"Book deleted. Your highlights and analyses are preserved in the database.",
+            "status": "success"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/upload")
+async def upload_book(file: UploadFile = File(...)):
+    """Upload and process an EPUB file."""
+    # Validate file type
+    if not file.filename.endswith('.epub'):
+        raise HTTPException(status_code=400, detail="Only EPUB files are supported")
+    
+    try:
+        # Create temp directory if it doesn't exist
+        temp_dir = "temp"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Save uploaded file
+        temp_file_path = os.path.join(temp_dir, file.filename)
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Process the EPUB file using reader3.py with uv
+        result = subprocess.run(
+            ["uv", "run", "reader3.py", temp_file_path],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        # Clean up temp file
+        os.remove(temp_file_path)
+        
+        if result.returncode == 0:
+            # Extract book title from output
+            book_name = os.path.splitext(file.filename)[0]
+            return {
+                "message": f"Successfully processed '{book_name}'",
+                "status": "success"
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to process EPUB: {result.stderr}"
+            )
+    
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Processing timeout (file too large?)")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn

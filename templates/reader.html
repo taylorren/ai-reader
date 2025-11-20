@@ -5,27 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ book.metadata.title }}</title>
     <style>
-        /* Layout */
+        /* Layout - Three Column */
         body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; }
 
-        /* Sidebar */
-        #sidebar { width: 300px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 20px; flex-shrink: 0; }
+        /* Left Sidebar - TOC */
+        #sidebar { width: 280px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 20px; flex-shrink: 0; }
         .nav-header { font-family: -apple-system, sans-serif; font-weight: bold; color: #495057; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #dee2e6; }
         .nav-home { display: block; margin-bottom: 20px; color: #3498db; text-decoration: none; font-family: -apple-system, sans-serif; font-size: 0.9em; }
 
         /* TOC Tree */
         ul.toc-list { list-style: none; padding-left: 0; margin: 0; }
-        ul.toc-list ul { padding-left: 20px; } /* Indent children */
+        ul.toc-list ul { padding-left: 20px; }
         li.toc-item { margin-bottom: 8px; }
         a.toc-link { text-decoration: none; color: #495057; font-size: 0.95em; display: block; padding: 4px 0; line-height: 1.4; }
         a.toc-link:hover { color: #000; text-decoration: underline; }
         a.toc-link.active { color: #d63384; font-weight: bold; }
 
-        /* Main Content */
+        /* Main Content - Center */
         #main { flex-grow: 1; overflow-y: auto; position: relative; scroll-behavior: smooth; }
         .content-container { max-width: 700px; margin: 0 auto; padding: 60px 40px; line-height: 1.8; font-size: 1.15em; color: #212529; }
 
-        /* Content Styling (Basic normalization for the book HTML) */
+        /* Content Styling */
         .book-content img { max-width: 100%; height: auto; display: block; margin: 20px auto; }
         .book-content h1, .book-content h2, .book-content h3 { font-family: -apple-system, sans-serif; margin-top: 1.5em; color: #333; }
         .book-content p { margin-bottom: 1.5em; text-align: justify; }
@@ -36,53 +36,148 @@
         .nav-btn:hover { background: #3498db; color: white; }
         .nav-btn.disabled { opacity: 0.5; pointer-events: none; border-color: #ccc; color: #ccc; }
 
+        /* Right Panel - AI Analysis */
+        #ai-panel { width: 400px; background: #fafbfc; border-left: 1px solid #e9ecef; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+        #ai-panel.hidden { display: none; }
+        
+        .panel-header { padding: 20px; border-bottom: 1px solid #e9ecef; background: white; }
+        .panel-title { font-family: -apple-system, sans-serif; font-size: 1.1em; font-weight: bold; color: #333; margin: 0; }
+        .panel-close { float: right; cursor: pointer; color: #999; font-size: 1.3em; line-height: 1; }
+        .panel-close:hover { color: #333; }
+        
+        .panel-content { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        
+        .selected-text-box { background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin-bottom: 20px; border-radius: 4px; }
+        .selected-text-label { font-family: -apple-system, sans-serif; font-size: 0.85em; color: #856404; font-weight: bold; margin-bottom: 8px; }
+        .selected-text-content { font-style: italic; color: #333; line-height: 1.6; }
+        
+        .analysis-box { background: white; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 20px; }
+        .analysis-type { font-family: -apple-system, sans-serif; font-size: 0.9em; color: #666; margin-bottom: 10px; }
+        .analysis-content { line-height: 1.8; color: #333; }
+        
+        /* Markdown styling */
+        .markdown-content { font-size: 0.95em; }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin-top: 1.2em; margin-bottom: 0.6em; color: #2c3e50; }
+        .markdown-content h1 { font-size: 1.4em; border-bottom: 2px solid #e9ecef; padding-bottom: 0.3em; }
+        .markdown-content h2 { font-size: 1.2em; }
+        .markdown-content h3 { font-size: 1.05em; }
+        .markdown-content p { margin-bottom: 1em; }
+        .markdown-content ul, .markdown-content ol { margin-left: 1.5em; margin-bottom: 1em; }
+        .markdown-content li { margin-bottom: 0.4em; }
+        .markdown-content code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+        .markdown-content pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; margin-bottom: 1em; }
+        .markdown-content pre code { background: none; padding: 0; }
+        .markdown-content blockquote { border-left: 3px solid #ddd; padding-left: 1em; margin-left: 0; color: #666; font-style: italic; }
+        .markdown-content strong { font-weight: 600; color: #2c3e50; }
+        .markdown-content em { font-style: italic; }
+        .markdown-content a { color: #3498db; text-decoration: none; }
+        .markdown-content a:hover { text-decoration: underline; }
+        .markdown-content hr { border: none; border-top: 1px solid #e9ecef; margin: 1.5em 0; }
+        .loading { text-align: center; padding: 40px; color: #999; }
+        
+        .panel-actions { padding: 15px 20px; border-top: 1px solid #e9ecef; background: white; display: flex; gap: 10px; }
+        .btn { padding: 10px 20px; border-radius: 6px; font-family: -apple-system, sans-serif; font-size: 0.9em; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-secondary { background: #e9ecef; color: #333; }
+        .btn-secondary:hover { background: #dee2e6; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Context Menu */
+        #context-menu { position: absolute; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 8px 0; display: none; z-index: 1000; min-width: 180px; }
+        .context-menu-item { padding: 12px 20px; cursor: pointer; font-family: -apple-system, sans-serif; font-size: 0.9em; color: #333; transition: background 0.2s; display: flex; align-items: center; gap: 10px; }
+        .context-menu-item:hover { background: #f0f0f0; }
+        .context-menu-item:active { background: #e0e0e0; }
+        .context-menu-separator { height: 1px; background: #e9ecef; margin: 4px 0; }
+
+        /* Toggle Panel Button */
+        .toggle-panel-btn { position: fixed; right: 20px; bottom: 20px; background: #3498db; color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 1.5em; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999; transition: all 0.2s; }
+        .toggle-panel-btn:hover { background: #2980b9; transform: scale(1.05); }
+        .toggle-panel-btn.hidden { display: none; }
+
+        /* Saved indicator */
+        .saved-indicator { color: #28a745; font-size: 0.85em; margin-top: 10px; display: none; }
+        .saved-indicator.show { display: block; }
+
+        /* Saved Highlight markers */
+        .saved-highlight { 
+            background: linear-gradient(180deg, transparent 60%, #ffeb3b 60%);
+            cursor: pointer; 
+            position: relative;
+            transition: background 0.2s;
+            padding: 2px 0;
+        }
+        .saved-highlight:hover { 
+            background: linear-gradient(180deg, transparent 60%, #fdd835 60%);
+        }
+        .saved-highlight::before {
+            content: attr(data-analysis-type);
+            position: absolute;
+            left: -20px;
+            top: 0;
+            font-size: 0.9em;
+        }
+        .saved-highlight[data-analysis-type="fact_check"]::before {
+            content: "📋";
+        }
+        .saved-highlight[data-analysis-type="discussion"]::before {
+            content: "💡";
+        }
+        .saved-highlight[data-analysis-type="comment"]::before {
+            content: "💬";
+        }
+        .saved-highlight[data-analysis-type="comment"] {
+            background: linear-gradient(180deg, transparent 60%, #a5d6a7 60%);
+        }
+        .saved-highlight[data-analysis-type="comment"]:hover {
+            background: linear-gradient(180deg, transparent 60%, #81c784 60%);
+        }
+        
+        /* Comment input area */
+        #comment-input-area {
+            display: none;
+        }
+        #comment-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.95em;
+            resize: vertical;
+            line-height: 1.6;
+        }
+        #comment-textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        .comment-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #333;
+            font-family: -apple-system, sans-serif;
+        }
     </style>
 </head>
 <body>
 
-    <!-- SIDEBAR -->
+    <!-- Left Sidebar - TOC -->
     <div id="sidebar">
-        <a href="/" class="nav-home">← Back to Library</a>
+        <a href="/" class="nav-home">← 返回图书馆</a>
         <div class="nav-header">{{ book.metadata.title }}</div>
 
-        <!-- Recursive Macro for TOC -->
         {% macro render_toc(items) %}
             <ul class="toc-list">
             {% for item in items %}
                 <li class="toc-item">
-                    <!--
-                        Matching Logic:
-                        If the TOC item filename matches the current chapter filename, mark active.
-                        Ideally we match spine indices, but Reader 3 TOC maps to filenames.
-                        We use a simple hash matching logic here.
-                    -->
                     {% set is_active = current_chapter.href == item.file_href %}
-
-                    <!--
-                       We need to find which linear chapter index (0, 1, 2) corresponds
-                       to this TOC entry file.
-                       Since that's hard to calculate in Jinja, we just link to the
-                       file anchor. BUT, to make our linear navigation work, we
-                       rely on the fact that the user is currently reading 'chapter_index'.
-
-                       Ideally, clicking a TOC link should find the 'index' of that file.
-                       For simplicity in this version: We link to the 'href' (filename)
-                       and let JavaScript or Backend handle it?
-
-                       Actually, let's just link to the file. The browser interprets #anchors.
-                       However, our router uses /read/book/INDEX.
-
-                       SIMPLE FIX: We won't link the TOC to the route index in this simple version
-                       unless we build a map. We will visually show structure,
-                       but rely on "Previous/Next" for linear reading.
-
-                       BETTER FIX: Use JavaScript to match filenames.
-                    -->
                     <a href="#" onclick="findAndGo('{{ item.file_href }}')"
                        class="toc-link {% if is_active %}active{% endif %}">
                         {{ item.title }}
                     </a>
-
                     {% if item.children %}
                         {{ render_toc(item.children) }}
                     {% endif %}
@@ -94,36 +189,117 @@
         {{ render_toc(book.toc) }}
     </div>
 
-    <!-- MAIN CONTENT -->
+    <!-- Main Content - Center -->
     <div id="main">
         <div class="content-container">
-            <div class="book-content">
+            <div class="book-content" id="book-content">
                 {{ current_chapter.content | safe }}
             </div>
 
             <div class="chapter-nav">
                 {% if prev_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← Previous</a>
+                    <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← 上一章</a>
                 {% else %}
-                    <span class="nav-btn disabled">← Previous</span>
+                    <span class="nav-btn disabled">← 上一章</span>
                 {% endif %}
 
                 <span style="color: #999; padding: 10px;">
-                    Section {{ chapter_index + 1 }} of {{ book.spine|length }}
+                    第 {{ chapter_index + 1 }} / {{ book.spine|length }} 节
                 </span>
 
                 {% if next_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">Next →</a>
+                    <a href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">下一章 →</a>
                 {% else %}
-                    <span class="nav-btn disabled">Next →</span>
+                    <span class="nav-btn disabled">下一章 →</span>
                 {% endif %}
             </div>
         </div>
     </div>
 
+    <!-- Right Panel - AI Analysis -->
+    <div id="ai-panel" class="hidden">
+        <div class="panel-header">
+            <span class="panel-close" onclick="closePanel()">&times;</span>
+            <h3 class="panel-title" id="panel-title">AI 分析</h3>
+        </div>
+        
+        <div class="panel-content">
+            <div class="selected-text-box">
+                <div class="selected-text-label">选中的文本</div>
+                <div class="selected-text-content" id="panel-selected-text"></div>
+            </div>
+            
+            <div class="analysis-box" id="analysis-box">
+                <div class="analysis-type" id="panel-analysis-type"></div>
+                <div class="analysis-content markdown-content" id="panel-analysis-content"></div>
+                    <div class="loading">等待分析...</div>
+                </div>
+            </div>
+            
+            <div id="comment-input-area">
+                <label class="comment-label">你的笔记:</label>
+                <textarea id="comment-textarea" placeholder="在这里写下你的想法、笔记或评论..."></textarea>
+            </div>
+            
+            <div class="saved-indicator" id="saved-indicator">
+                ✓ 已保存到数据库
+            </div>
+        </div>
+        
+        <div class="panel-actions" id="panel-actions">
+            <button class="btn btn-primary" id="save-btn" onclick="saveAnalysis()" disabled>
+                保存到数据库
+            </button>
+            <button class="btn btn-secondary" onclick="closePanel()">
+                关闭
+            </button>
+        </div>
+        
+        <div class="panel-actions" id="comment-actions" style="display: none;">
+            <button class="btn btn-primary" id="save-comment-btn" onclick="saveComment()">
+                保存笔记
+            </button>
+            <button class="btn btn-primary" id="update-comment-btn" onclick="updateComment()" style="display: none;">
+                更新笔记
+            </button>
+            <button class="btn btn-secondary" id="delete-comment-btn" onclick="deleteComment()" style="display: none; background: #f44336; color: white;">
+                删除
+            </button>
+            <button class="btn btn-secondary" onclick="closePanel()">
+                取消
+            </button>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu">
+        <div class="context-menu-item" onclick="handleContextAction('fact_check')">
+            📋 事实核查
+        </div>
+        <div class="context-menu-item" onclick="handleContextAction('discussion')">
+            💡 深入讨论
+        </div>
+        <div class="context-menu-item" onclick="handleContextAction('comment')">
+            💬 添加笔记
+        </div>
+    </div>
+
+    <!-- Toggle Panel Button (when panel is hidden) -->
+    <button class="toggle-panel-btn" id="toggle-panel-btn" onclick="togglePanel()">
+        🤖
+    </button>
+
+    <!-- Markdown parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    
     <script>
-        // Helper to map TOC filenames to Spine Indices
-        // Pass the spine data from python to JS
+        // Configure marked for safe rendering
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+        
+        // TOC Navigation
         const spineMap = {
             {% for ch in book.spine %}
             "{{ ch.href }}": {{ ch.order }},
@@ -131,24 +307,587 @@
         };
 
         function findAndGo(filename) {
-            // The TOC usually has specific filenames e.g. "text/part001.html"
-            // Sometimes it has anchors "text/part001.html#header"
-            // We strip the anchor to find the page index
             const cleanFile = filename.split('#')[0];
-            const anchor = filename.split('#')[1];
-
             const idx = spineMap[cleanFile];
-
             if (idx !== undefined) {
-                let url = "/read/{{ book_id }}/" + idx;
-                // If there was an anchor, we could try to scroll to it,
-                // but simple page loads often lose anchor position without extra JS.
-                // Let's just go to the page.
-                window.location.href = url;
-            } else {
-                console.log("Could not find index for", filename);
+                window.location.href = "/read/{{ book_id }}/" + idx;
             }
         }
+
+        // AI Feature Variables
+        const BOOK_ID = "{{ book_id }}";
+        const CHAPTER_INDEX = {{ chapter_index }};
+        let selectedText = "";
+        let selectedContext = "";
+        let currentHighlightId = null;
+        let currentAnalysisId = null;
+        let currentAnalysisType = "";
+        let savedHighlights = []; // Store saved highlights for this chapter
+
+        // Load saved highlights when page loads
+        async function loadSavedHighlights() {
+            try {
+                const response = await fetch(`/api/highlights/${BOOK_ID}/${CHAPTER_INDEX}`);
+                const data = await response.json();
+                savedHighlights = data.highlights || [];
+                
+                // Apply highlights to the content
+                applyHighlights();
+            } catch (error) {
+                console.error('Error loading highlights:', error);
+            }
+        }
+
+        // Apply highlights using Range-based approach (industry standard)
+        // This is how tools like Hypothesis, Medium, and Google Docs do it
+        function applyHighlights() {
+            if (savedHighlights.length === 0) return;
+            
+            const bookContent = document.getElementById('book-content');
+            
+            // Find all text ranges first, then wrap them
+            const ranges = [];
+            
+            savedHighlights.forEach((highlight) => {
+                const text = highlight.selected_text;
+                const analysisType = highlight.analyses && highlight.analyses.length > 0 
+                    ? highlight.analyses[0].analysis_type 
+                    : '';
+                
+                const range = findTextRange(bookContent, text);
+                if (range) {
+                    ranges.push({
+                        range: range,
+                        highlight: highlight,
+                        analysisType: analysisType
+                    });
+                }
+            });
+            
+            // Sort ranges by start position (latest first) to avoid position shifts
+            ranges.sort((a, b) => {
+                return b.range.compareBoundaryPoints(Range.START_TO_START, a.range);
+            });
+            
+            // Wrap each range in a span (manual method to handle complex cases)
+            ranges.forEach((item) => {
+                try {
+                    const span = document.createElement('span');
+                    span.className = 'saved-highlight';
+                    span.setAttribute('data-highlight-id', item.highlight.id);
+                    span.setAttribute('data-analysis-type', item.analysisType);
+                    span.onclick = () => showSavedAnalysis(item.highlight);
+                    
+                    // Extract contents and wrap them
+                    const contents = item.range.extractContents();
+                    span.appendChild(contents);
+                    item.range.insertNode(span);
+                } catch (e) {
+                    console.error(`Failed to apply highlight ${item.highlight.id}:`, e);
+                }
+            });
+        }
+        
+        // Find text range in element (standard text search algorithm)
+        function findTextRange(element, searchText) {
+            const walker = document.createTreeWalker(
+                element,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            
+            let node;
+            let fullText = '';
+            const nodes = [];
+            
+            // Build a map of text nodes
+            while (node = walker.nextNode()) {
+                nodes.push({
+                    node: node,
+                    start: fullText.length,
+                    end: fullText.length + node.textContent.length
+                });
+                fullText += node.textContent;
+            }
+            
+            // Find the search text position
+            const searchIndex = fullText.indexOf(searchText);
+            if (searchIndex === -1) {
+                return null;
+            }
+            
+            const searchEnd = searchIndex + searchText.length;
+            
+            // Find which text nodes contain the search text
+            let startNode = null, startOffset = 0;
+            let endNode = null, endOffset = 0;
+            
+            for (const item of nodes) {
+                if (searchIndex >= item.start && searchIndex < item.end) {
+                    startNode = item.node;
+                    startOffset = searchIndex - item.start;
+                }
+                if (searchEnd > item.start && searchEnd <= item.end) {
+                    endNode = item.node;
+                    endOffset = searchEnd - item.start;
+                }
+                if (startNode && endNode) break;
+            }
+            
+            if (!startNode || !endNode) {
+                return null;
+            }
+            
+            // Create range
+            const range = document.createRange();
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+            
+            return range;
+        }
+
+        // Show saved analysis when clicking on a highlight
+        function showSavedAnalysis(highlight) {
+            openPanel();
+            
+            // Update panel content
+            document.getElementById('panel-selected-text').textContent = highlight.selected_text;
+            
+            if (highlight.analyses && highlight.analyses.length > 0) {
+                const analysis = highlight.analyses[0];
+                
+                // Check if it's a comment
+                if (analysis.analysis_type === 'comment') {
+                    // Show comment view with edit capability
+                    document.getElementById('panel-title').textContent = '💬 我的笔记';
+                    document.getElementById('analysis-box').style.display = 'none';
+                    document.getElementById('comment-input-area').style.display = 'block';
+                    document.getElementById('comment-textarea').value = analysis.response;
+                    
+                    // Show edit/delete buttons
+                    document.getElementById('panel-actions').style.display = 'none';
+                    document.getElementById('comment-actions').style.display = 'flex';
+                    document.getElementById('save-comment-btn').style.display = 'none';
+                    document.getElementById('update-comment-btn').style.display = 'inline-block';
+                    document.getElementById('delete-comment-btn').style.display = 'inline-block';
+                    
+                    // Store IDs for update/delete
+                    currentHighlightId = highlight.id;
+                    currentAnalysisId = analysis.id;
+                    currentAnalysisType = 'comment';
+                    selectedText = highlight.selected_text;
+                    
+                } else {
+                    // Show AI analysis (fact_check or discussion)
+                    document.getElementById('panel-title').textContent = '📚 已保存的分析';
+                    document.getElementById('analysis-box').style.display = 'block';
+                    document.getElementById('comment-input-area').style.display = 'none';
+                    document.getElementById('panel-analysis-type').textContent = 
+                        analysis.analysis_type === 'fact_check' ? '事实核查' : '深入讨论';
+                    // Render markdown for AI responses
+                    document.getElementById('panel-analysis-content').innerHTML = marked.parse(analysis.response);
+                    
+                    // Hide save button and show saved indicator
+                    document.getElementById('panel-actions').style.display = 'flex';
+                    document.getElementById('comment-actions').style.display = 'none';
+                    document.getElementById('save-btn').style.display = 'none';
+                    document.getElementById('saved-indicator').classList.add('show');
+                }
+            } else {
+                document.getElementById('panel-title').textContent = '📚 已保存的分析';
+                document.getElementById('analysis-box').style.display = 'block';
+                document.getElementById('comment-input-area').style.display = 'none';
+                document.getElementById('panel-analysis-content').textContent = '暂无AI分析';
+                document.getElementById('panel-actions').style.display = 'flex';
+                document.getElementById('comment-actions').style.display = 'none';
+                document.getElementById('save-btn').style.display = 'none';
+            }
+        }
+
+        // Load highlights when page loads
+        window.addEventListener('DOMContentLoaded', loadSavedHighlights);
+
+        // Prevent default context menu on book content
+        document.getElementById('book-content').addEventListener('contextmenu', function(e) {
+            const selection = window.getSelection();
+            const text = selection.toString().trim();
+            
+            if (text.length > 0) {
+                e.preventDefault();
+                selectedText = text;
+                
+                // Get context
+                const range = selection.getRangeAt(0);
+                const container = range.commonAncestorContainer.parentElement;
+                selectedContext = container.textContent || "";
+                
+                showContextMenu(e.pageX, e.pageY);
+            }
+        });
+
+        // Hide context menu when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#context-menu')) {
+                hideContextMenu();
+            }
+        });
+
+        function showContextMenu(x, y) {
+            const menu = document.getElementById('context-menu');
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
+
+        function hideContextMenu() {
+            document.getElementById('context-menu').style.display = 'none';
+        }
+
+        async function handleContextAction(actionType) {
+            hideContextMenu();
+            
+            if (!selectedText) return;
+
+            currentAnalysisType = actionType;
+            
+            // Show panel
+            openPanel();
+            
+            // Reset IDs
+            currentHighlightId = null;
+            currentAnalysisId = null;
+            
+            // Hide saved indicator
+            document.getElementById('saved-indicator').classList.remove('show');
+            
+            // Handle comment action differently
+            if (actionType === 'comment') {
+                // Show comment input UI
+                document.getElementById('panel-title').textContent = '💬 添加笔记';
+                document.getElementById('panel-selected-text').textContent = selectedText;
+                
+                // Hide analysis box, show comment input
+                document.getElementById('analysis-box').style.display = 'none';
+                document.getElementById('comment-input-area').style.display = 'block';
+                document.getElementById('comment-textarea').value = '';
+                document.getElementById('comment-textarea').focus();
+                
+                // Show comment actions, hide AI actions
+                document.getElementById('panel-actions').style.display = 'none';
+                document.getElementById('comment-actions').style.display = 'flex';
+                document.getElementById('save-comment-btn').style.display = 'inline-block';
+                document.getElementById('update-comment-btn').style.display = 'none';
+                document.getElementById('delete-comment-btn').style.display = 'none';
+                
+                return;
+            }
+            
+            // Handle AI actions (fact_check, discussion)
+            // Show analysis box, hide comment input
+            document.getElementById('analysis-box').style.display = 'block';
+            document.getElementById('comment-input-area').style.display = 'none';
+            document.getElementById('panel-actions').style.display = 'flex';
+            document.getElementById('comment-actions').style.display = 'none';
+            
+            // Update panel content
+            document.getElementById('panel-title').textContent = 
+                actionType === 'fact_check' ? '📋 事实核查' : '💡 深入讨论';
+            document.getElementById('panel-selected-text').textContent = selectedText;
+            document.getElementById('panel-analysis-type').textContent = 
+                actionType === 'fact_check' ? '事实核查分析' : '深入讨论';
+            document.getElementById('panel-analysis-content').innerHTML = 
+                '<div class="loading">正在分析中...</div>';
+            
+            // Disable save button
+            document.getElementById('save-btn').disabled = true;
+
+            try {
+                // Call AI analysis (without saving)
+                const aiRes = await fetch('/api/ai/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: 0,  // Temporary, not saved yet
+                        analysis_type: actionType,
+                        selected_text: selectedText,
+                        context: selectedContext
+                    })
+                });
+
+                const aiData = await aiRes.json();
+                
+                if (aiData.status === 'success') {
+                    // Render markdown
+                    document.getElementById('panel-analysis-content').innerHTML = marked.parse(aiData.response);
+                    // Enable save button
+                    document.getElementById('save-btn').disabled = false;
+                } else {
+                    document.getElementById('panel-analysis-content').textContent = '分析失败，请重试。';
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('panel-analysis-content').textContent = '发生错误: ' + error.message;
+            }
+        }
+
+        async function saveAnalysis() {
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+            
+            try {
+                // Step 1: Save highlight
+                const highlightRes = await fetch('/api/highlight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        book_id: BOOK_ID,
+                        chapter_index: CHAPTER_INDEX,
+                        selected_text: selectedText,
+                        context_before: selectedContext.substring(0, 200),
+                        context_after: selectedContext.substring(selectedContext.length - 200)
+                    })
+                });
+
+                const highlightData = await highlightRes.json();
+                currentHighlightId = highlightData.highlight_id;
+
+                // Step 2: Save analysis
+                const analysisContent = document.getElementById('panel-analysis-content').textContent;
+                
+                const saveRes = await fetch('/api/ai/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: currentHighlightId,
+                        analysis_type: currentAnalysisType,
+                        prompt: selectedText,
+                        response: analysisContent
+                    })
+                });
+
+                const saveData = await saveRes.json();
+                
+                if (saveData.status === 'success') {
+                    currentAnalysisId = saveData.analysis_id;
+                    document.getElementById('saved-indicator').classList.add('show');
+                    saveBtn.textContent = '已保存';
+                } else {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '保存失败';
+                    setTimeout(() => {
+                        saveBtn.textContent = '保存到数据库';
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存失败';
+                setTimeout(() => {
+                    saveBtn.textContent = '保存到数据库';
+                }, 2000);
+            }
+        }
+
+        function openPanel() {
+            document.getElementById('ai-panel').classList.remove('hidden');
+            document.getElementById('toggle-panel-btn').classList.add('hidden');
+        }
+
+        function closePanel() {
+            document.getElementById('ai-panel').classList.add('hidden');
+            document.getElementById('toggle-panel-btn').classList.remove('hidden');
+            window.getSelection().removeAllRanges();
+            
+            // Reset panel state
+            document.getElementById('save-btn').style.display = 'inline-block';
+            document.getElementById('saved-indicator').classList.remove('show');
+            document.getElementById('analysis-box').style.display = 'block';
+            document.getElementById('comment-input-area').style.display = 'none';
+            document.getElementById('panel-actions').style.display = 'flex';
+            document.getElementById('comment-actions').style.display = 'none';
+        }
+        
+        // Comment functions
+        async function saveComment() {
+            const commentText = document.getElementById('comment-textarea').value.trim();
+            
+            if (!commentText) {
+                alert('请输入笔记内容');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('save-comment-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+            
+            try {
+                // Step 1: Save highlight
+                const highlightRes = await fetch('/api/highlight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        book_id: BOOK_ID,
+                        chapter_index: CHAPTER_INDEX,
+                        selected_text: selectedText,
+                        context_before: selectedContext.substring(0, 200),
+                        context_after: selectedContext.substring(selectedContext.length - 200)
+                    })
+                });
+
+                const highlightData = await highlightRes.json();
+                currentHighlightId = highlightData.highlight_id;
+
+                // Step 2: Save comment as analysis
+                const saveRes = await fetch('/api/ai/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: currentHighlightId,
+                        analysis_type: 'comment',
+                        prompt: selectedText,
+                        response: commentText
+                    })
+                });
+
+                const saveData = await saveRes.json();
+                
+                if (saveData.status === 'success') {
+                    currentAnalysisId = saveData.analysis_id;
+                    document.getElementById('saved-indicator').classList.add('show');
+                    saveBtn.textContent = '已保存';
+                    
+                    // Reload highlights to show the new comment
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '保存失败';
+                    setTimeout(() => {
+                        saveBtn.textContent = '保存笔记';
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存失败';
+                setTimeout(() => {
+                    saveBtn.textContent = '保存笔记';
+                }, 2000);
+            }
+        }
+        
+        async function updateComment() {
+            const commentText = document.getElementById('comment-textarea').value.trim();
+            
+            if (!commentText) {
+                alert('请输入笔记内容');
+                return;
+            }
+            
+            const updateBtn = document.getElementById('update-comment-btn');
+            updateBtn.disabled = true;
+            updateBtn.textContent = '更新中...';
+            
+            try {
+                const response = await fetch(`/api/ai/update/${currentAnalysisId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        response: commentText
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    updateBtn.textContent = '已更新';
+                    document.getElementById('saved-indicator').classList.add('show');
+                    
+                    // Reload to show updated comment
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    updateBtn.disabled = false;
+                    updateBtn.textContent = '更新失败';
+                    setTimeout(() => {
+                        updateBtn.textContent = '更新笔记';
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                updateBtn.disabled = false;
+                updateBtn.textContent = '更新失败';
+                setTimeout(() => {
+                    updateBtn.textContent = '更新笔记';
+                }, 2000);
+            }
+        }
+        
+        async function deleteComment() {
+            if (!confirm('确定要删除这条笔记吗？')) {
+                return;
+            }
+            
+            const deleteBtn = document.getElementById('delete-comment-btn');
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = '删除中...';
+            
+            try {
+                const response = await fetch(`/api/ai/delete/${currentAnalysisId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    deleteBtn.textContent = '已删除';
+                    
+                    // Reload to remove the highlight
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                } else {
+                    deleteBtn.disabled = false;
+                    deleteBtn.textContent = '删除失败';
+                    setTimeout(() => {
+                        deleteBtn.textContent = '删除';
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '删除失败';
+                setTimeout(() => {
+                    deleteBtn.textContent = '删除';
+                }, 2000);
+            }
+        }
+
+        function togglePanel() {
+            const panel = document.getElementById('ai-panel');
+            if (panel.classList.contains('hidden')) {
+                openPanel();
+            } else {
+                closePanel();
+            }
+        }
+
+        // ESC to close panel
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePanel();
+                hideContextMenu();
+            }
+        });
     </script>
 </body>
 </html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Highlights - {{ book_title }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; line-height: 1.6; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { border-bottom: 2px solid #e9ecef; padding-bottom: 20px; margin-bottom: 30px; }
+        .back-link { display: inline-block; color: #3498db; text-decoration: none; margin-bottom: 15px; font-size: 0.9em; }
+        .back-link:hover { text-decoration: underline; }
+        h1 { color: #2c3e50; margin: 0 0 10px 0; font-size: 2em; }
+        .book-meta { color: #666; font-size: 0.95em; }
+        .stats { display: flex; gap: 30px; margin-top: 15px; }
+        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 0.9em; color: #666; }
+        .stat-icon { font-size: 1.2em; }
+        
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 30px; padding: 15px; background: #f8f9fa; border-radius: 6px; }
+        .filter-btn { padding: 8px 16px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
+        .filter-btn:hover { background: #e9ecef; }
+        .filter-btn.active { background: #3498db; color: white; border-color: #3498db; }
+        
+        .highlight-item { margin-bottom: 30px; padding: 20px; border-left: 4px solid #ffc107; background: #fffbf0; border-radius: 4px; transition: all 0.2s; }
+        .highlight-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .highlight-item.fact_check { border-left-color: #ffc107; background: #fffbf0; }
+        .highlight-item.discussion { border-left-color: #2196f3; background: #f0f7ff; }
+        .highlight-item.comment { border-left-color: #4caf50; background: #f1f8f4; }
+        
+        .highlight-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+        .highlight-type { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; color: #666; font-weight: 500; }
+        .highlight-date { font-size: 0.8em; color: #999; }
+        .highlight-chapter { font-size: 0.85em; color: #666; margin-bottom: 10px; }
+        
+        .highlight-text { font-size: 1.05em; color: #2c3e50; margin-bottom: 15px; font-style: italic; line-height: 1.7; }
+        
+        .analysis-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1); }
+        .analysis-label { font-size: 0.85em; color: #666; font-weight: 500; margin-bottom: 8px; }
+        .analysis-content { color: #495057; line-height: 1.7; }
+        
+        /* Markdown styling */
+        .analysis-content h1, .analysis-content h2, .analysis-content h3 { margin-top: 1em; margin-bottom: 0.5em; color: #2c3e50; }
+        .analysis-content h1 { font-size: 1.3em; border-bottom: 2px solid #e9ecef; padding-bottom: 0.3em; }
+        .analysis-content h2 { font-size: 1.15em; }
+        .analysis-content h3 { font-size: 1.05em; }
+        .analysis-content p { margin-bottom: 0.8em; }
+        .analysis-content ul, .analysis-content ol { margin-left: 1.5em; margin-bottom: 0.8em; }
+        .analysis-content li { margin-bottom: 0.3em; }
+        .analysis-content code { background: #f5f5f5; padding: 2px 5px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+        .analysis-content pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; margin-bottom: 0.8em; }
+        .analysis-content pre code { background: none; padding: 0; }
+        .analysis-content blockquote { border-left: 3px solid #ddd; padding-left: 1em; margin-left: 0; color: #666; font-style: italic; }
+        .analysis-content strong { font-weight: 600; color: #2c3e50; }
+        .analysis-content em { font-style: italic; }
+        .analysis-content a { color: #3498db; text-decoration: none; }
+        .analysis-content a:hover { text-decoration: underline; }
+        .analysis-content hr { border: none; border-top: 1px solid #e9ecef; margin: 1em 0; }
+        
+        .action-links { margin-top: 12px; display: flex; gap: 15px; }
+        .action-link { color: #3498db; text-decoration: none; font-size: 0.85em; }
+        .action-link:hover { text-decoration: underline; }
+        
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-icon { font-size: 4em; margin-bottom: 20px; }
+        .empty-text { font-size: 1.1em; margin-bottom: 10px; }
+        .empty-subtext { font-size: 0.9em; }
+        
+        .export-btn { float: right; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .export-btn:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">← Back to Library</a>
+            <h1>{{ book_title }}</h1>
+            <div class="book-meta">All your highlights and notes</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-icon">📋</span>
+                    <span>{{ stats.fact_check }} Fact Checks</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">💡</span>
+                    <span>{{ stats.discussion }} Discussions</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">💬</span>
+                    <span>{{ stats.comment }} Comments</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">📝</span>
+                    <span>{{ stats.total }} Total</span>
+                </div>
+            </div>
+        </div>
+        
+        {% if highlights %}
+        <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterHighlights('all')">All</button>
+            <button class="filter-btn" onclick="filterHighlights('fact_check')">📋 Fact Checks</button>
+            <button class="filter-btn" onclick="filterHighlights('discussion')">💡 Discussions</button>
+            <button class="filter-btn" onclick="filterHighlights('comment')">💬 Comments</button>
+        </div>
+        
+        <div id="highlights-container">
+            {% for item in highlights %}
+            <div class="highlight-item {{ item.analysis_type }}" data-type="{{ item.analysis_type }}">
+                <div class="highlight-header">
+                    <div class="highlight-type">
+                        {% if item.analysis_type == 'fact_check' %}
+                        📋 Fact Check
+                        {% elif item.analysis_type == 'discussion' %}
+                        💡 Discussion
+                        {% elif item.analysis_type == 'comment' %}
+                        💬 Comment
+                        {% endif %}
+                    </div>
+                    <div class="highlight-date">{{ item.created_at }}</div>
+                </div>
+                
+                <div class="highlight-chapter">Chapter {{ item.chapter_index + 1 }}</div>
+                
+                <div class="highlight-text">"{{ item.selected_text }}"</div>
+                
+                {% if item.response %}
+                <div class="analysis-section">
+                    <div class="analysis-label">
+                        {% if item.analysis_type == 'comment' %}
+                        Your Note:
+                        {% else %}
+                        AI Analysis:
+                        {% endif %}
+                    </div>
+                    <div class="analysis-content" data-type="{{ item.analysis_type }}">{{ item.response }}</div>
+                </div>
+                {% endif %}
+                
+                <div class="action-links">
+                    <a href="/read/{{ book_id }}/{{ item.chapter_index }}" class="action-link">→ Go to chapter</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📚</div>
+            <div class="empty-text">No highlights yet</div>
+            <div class="empty-subtext">Start reading and highlight interesting passages!</div>
+            <div style="margin-top: 20px;">
+                <a href="/read/{{ book_id }}/0" class="action-link" style="font-size: 1em;">Start Reading →</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Markdown parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    
+    <script>
+        // Configure marked for safe rendering
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+        
+        // Render markdown for AI responses (not comments)
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.analysis-content').forEach(element => {
+                const type = element.getAttribute('data-type');
+                // Only render markdown for AI responses (fact_check, discussion)
+                if (type === 'fact_check' || type === 'discussion') {
+                    const text = element.textContent;
+                    element.innerHTML = marked.parse(text);
+                }
+            });
+        });
+        
+        function filterHighlights(type) {
+            const items = document.querySelectorAll('.highlight-item');
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            // Update button states
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Filter items
+            items.forEach(item => {
+                if (type === 'all' || item.dataset.type === type) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

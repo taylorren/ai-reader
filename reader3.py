@@ -64,6 +64,7 @@ class Book:
     # Meta info
     source_file: str
     processed_at: str
+    cover_image: Optional[str] = None  # Cover image filename
     version: str = "3.0"
 
 
@@ -187,9 +188,38 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
     images_dir = os.path.join(output_dir, 'images')
     os.makedirs(images_dir, exist_ok=True)
 
-    # 4. Extract Images & Build Map
+    # 4. Extract Images & Build Map (including cover)
     print("Extracting images...")
     image_map = {} # Key: internal_path, Value: local_relative_path
+    cover_image = None
+
+    # Try to find cover image from metadata
+    cover_item = None
+    
+    # Method 1: Check for ITEM_COVER type
+    for item in book.get_items():
+        if item.get_type() == ebooklib.ITEM_COVER:
+            cover_item = item
+            print(f"Found cover (type COVER): {item.get_name()}")
+            break
+    
+    # Method 2: Look for images with 'cover' in the name
+    if not cover_item:
+        for item in book.get_items():
+            if item.get_type() == ebooklib.ITEM_IMAGE:
+                name_lower = item.get_name().lower()
+                if 'cover' in name_lower or 'cvi' in name_lower:
+                    cover_item = item
+                    print(f"Found cover (by name): {item.get_name()}")
+                    break
+    
+    # Method 3: Use first image as fallback
+    if not cover_item:
+        for item in book.get_items():
+            if item.get_type() == ebooklib.ITEM_IMAGE:
+                cover_item = item
+                print(f"Using first image as cover: {item.get_name()}")
+                break
 
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_IMAGE:
@@ -208,6 +238,10 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
             rel_path = f"images/{safe_fname}"
             image_map[item.get_name()] = rel_path
             image_map[original_fname] = rel_path
+            
+            # Check if this is the cover image
+            if cover_item and item.get_name() == cover_item.get_name():
+                cover_image = safe_fname
 
     # 5. Process TOC
     print("Parsing Table of Contents...")
@@ -277,7 +311,8 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
         toc=toc_structure,
         images=image_map,
         source_file=os.path.basename(epub_path),
-        processed_at=datetime.now().isoformat()
+        processed_at=datetime.now().isoformat(),
+        cover_image=cover_image
     )
 
     return final_book
@@ -292,6 +327,26 @@ def save_to_pickle(book: Book, output_dir: str):
 
 # --- CLI ---
 
+def sanitize_folder_name(name: str) -> str:
+    """
+    Sanitize folder name while preserving Unicode characters (including Chinese).
+    Only removes characters that are invalid for Windows/Unix filesystems.
+    """
+    # Characters not allowed in Windows filenames
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        name = name.replace(char, '_')
+    
+    # Remove leading/trailing spaces and dots
+    name = name.strip('. ')
+    
+    # Limit length to avoid path issues (Windows has 260 char limit)
+    if len(name) > 100:
+        name = name[:100]
+    
+    return name
+
+
 if __name__ == "__main__":
 
     import sys
@@ -301,13 +356,48 @@ if __name__ == "__main__":
 
     epub_file = sys.argv[1]
     assert os.path.exists(epub_file), "File not found."
-    out_dir = os.path.splitext(epub_file)[0] + "_data"
+    
+    # Create books directory if it doesn't exist
+    books_dir = "books"
+    os.makedirs(books_dir, exist_ok=True)
+    
+    # First, do a quick metadata extraction to get the real title
+    print(f"Reading metadata from {epub_file}...")
+    temp_book = epub.read_epub(epub_file)
+    temp_metadata = extract_metadata_robust(temp_book)
+    
+    # Use the actual book title for folder name (supports Chinese!)
+    book_title = temp_metadata.title or os.path.splitext(os.path.basename(epub_file))[0]
+    safe_title = sanitize_folder_name(book_title)
+    out_dir = os.path.join(books_dir, safe_title + "_data")
+    
+    # If folder exists, add a number suffix
+    if os.path.exists(out_dir):
+        counter = 1
+        while os.path.exists(f"{out_dir}_{counter}"):
+            counter += 1
+        out_dir = f"{out_dir}_{counter}"
+    
+    print(f"Output directory: {out_dir}")
 
     book_obj = process_epub(epub_file, out_dir)
     save_to_pickle(book_obj, out_dir)
-    print("\n--- Summary ---")
-    print(f"Title: {book_obj.metadata.title}")
-    print(f"Authors: {', '.join(book_obj.metadata.authors)}")
-    print(f"Physical Files (Spine): {len(book_obj.spine)}")
-    print(f"TOC Root Items: {len(book_obj.toc)}")
-    print(f"Images extracted: {len(book_obj.images)}")
+    
+    # Use safe printing to avoid Unicode errors on Windows
+    try:
+        print("\n--- Summary ---")
+        print(f"Title: {book_obj.metadata.title}")
+        print(f"Authors: {', '.join(book_obj.metadata.authors)}")
+        print(f"Physical Files (Spine): {len(book_obj.spine)}")
+        print(f"TOC Root Items: {len(book_obj.toc)}")
+        print(f"Images extracted: {len(book_obj.images)}")
+        print(f"\nBook data saved to: {out_dir}")
+    except UnicodeEncodeError:
+        # Fallback for Windows console encoding issues
+        print("\n--- Summary ---")
+        print(f"Title: [Unicode title]")
+        print(f"Authors: [Unicode authors]")
+        print(f"Physical Files (Spine): {len(book_obj.spine)}")
+        print(f"TOC Root Items: {len(book_obj.toc)}")
+        print(f"Images extracted: {len(book_obj.images)}")
+        print(f"\nBook data saved to: {out_dir}")
