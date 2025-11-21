@@ -6,7 +6,60 @@
     <title>My Reader with AI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📚</text></svg>">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; transition: background-color 0.3s, color 0.3s; }
+        
+        /* Dark mode */
+        body.dark-mode { background: #1a1a1a; color: #e0e0e0; }
+        body.dark-mode h1 { color: #e0e0e0; border-bottom-color: #404040; }
+        body.dark-mode .book-card { background: #2d2d2d; color: #e0e0e0; }
+        body.dark-mode .book-card:hover { box-shadow: 0 4px 8px rgba(255,255,255,0.1); }
+        body.dark-mode .book-title { color: #e0e0e0; }
+        body.dark-mode .book-meta { color: #999; }
+        body.dark-mode .btn { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode .btn:hover { background: #42a5f5; }
+        body.dark-mode .menu-btn { background: #404040; color: #e0e0e0; }
+        body.dark-mode .menu-btn:hover { background: #505050; }
+        body.dark-mode .dropdown-menu { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .dropdown-item { color: #e0e0e0; border-bottom-color: #404040; }
+        body.dark-mode .dropdown-item:hover { background: #3d3d3d; }
+        body.dark-mode .dropdown-item.danger:hover { background: #5d2020; }
+        body.dark-mode .add-book-card { background: #2d2d2d; border-color: #64b5f6; }
+        body.dark-mode .add-book-card:hover { background: #3d3d3d; }
+        body.dark-mode .add-icon { color: #64b5f6; }
+        body.dark-mode .add-text { color: #999; }
+        body.dark-mode .upload-status { background: #2d2d2d; }
+        body.dark-mode .upload-status.success { background: #1d3d1d; color: #81c784; }
+        body.dark-mode .upload-status.error { background: #3d1d1d; color: #e57373; }
+        body.dark-mode .search-input { background: #2d2d2d; border-color: #404040; color: #e0e0e0; }
+        body.dark-mode .search-input:focus { border-color: #64b5f6; }
+        body.dark-mode .search-icon { color: #666; }
+        body.dark-mode .no-results { color: #666; }
+        
+        /* Theme toggle button */
+        .theme-toggle { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: white; 
+            border: 1px solid #ddd; 
+            font-size: 1.2em; 
+            cursor: pointer; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .theme-toggle:hover { 
+            background: #f8f9fa; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        body.dark-mode .theme-toggle { 
+            background: #2d2d2d; 
+            border-color: #404040; 
+        }
+        body.dark-mode .theme-toggle:hover { 
+            background: #3d3d3d; 
+        }
         .container { max-width: 800px; margin: 0 auto; }
         h1 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
         .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
@@ -58,6 +111,10 @@
     </style>
 </head>
 <body>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span id="theme-icon">🌙</span>
+    </button>
+    
     <div class="container">
         <h1>My Reader with AI</h1>
 
@@ -120,6 +177,31 @@
     </div>
 
     <script>
+        // Theme toggle
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            
+            if (body.classList.contains('dark-mode')) {
+                body.classList.remove('dark-mode');
+                icon.textContent = '🌙';
+                localStorage.setItem('reader-theme', 'light');
+            } else {
+                body.classList.add('dark-mode');
+                icon.textContent = '☀️';
+                localStorage.setItem('reader-theme', 'dark');
+            }
+        }
+        
+        // Load saved theme
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('reader-theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.getElementById('theme-icon').textContent = '☀️';
+            }
+        });
+        
         function filterBooks() {
             const searchInput = document.getElementById('search-input');
             const searchTerm = searchInput.value.toLowerCase();

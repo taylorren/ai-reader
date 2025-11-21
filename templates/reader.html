@@ -24,7 +24,69 @@
     
     <style>
         /* Layout - Three Column */
-        body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; }
+        body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; transition: background-color 0.3s, color 0.3s; }
+        
+        /* Dark mode */
+        body.dark-mode { background: #1a1a1a; color: #e0e0e0; }
+        body.dark-mode #sidebar { background: #2d2d2d; border-right-color: #404040; }
+        body.dark-mode .nav-header { color: #e0e0e0; border-bottom-color: #404040; }
+        body.dark-mode .nav-home { color: #64b5f6; }
+        body.dark-mode .toc-link { color: #b0b0b0; }
+        body.dark-mode .toc-link:hover { color: #e0e0e0; }
+        body.dark-mode .toc-link.active { color: #ff6b9d; }
+        body.dark-mode .content-container { color: #d0d0d0; }
+        body.dark-mode .book-content h1,
+        body.dark-mode .book-content h2,
+        body.dark-mode .book-content h3 { color: #e0e0e0; }
+        body.dark-mode .chapter-nav { border-top-color: #404040; }
+        body.dark-mode .chapter-nav.sticky { background: #1a1a1a; border-bottom-color: #404040; }
+        body.dark-mode .nav-btn { color: #64b5f6; border-color: #64b5f6; }
+        body.dark-mode .nav-btn:hover { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode .nav-btn.disabled { border-color: #555; color: #555; }
+        body.dark-mode #ai-panel { background: #2d2d2d; border-left-color: #404040; }
+        body.dark-mode .panel-header { background: #252525; border-bottom-color: #404040; }
+        body.dark-mode .panel-title { color: #e0e0e0; }
+        body.dark-mode .panel-close { color: #999; }
+        body.dark-mode .panel-close:hover { color: #e0e0e0; }
+        body.dark-mode .selected-text-box { background: #3d3520; border-left-color: #ffc107; }
+        body.dark-mode .selected-text-label { color: #ffd54f; }
+        body.dark-mode .selected-text-content { color: #d0d0d0; }
+        body.dark-mode .analysis-box { background: #252525; border-color: #404040; }
+        body.dark-mode .analysis-type { color: #999; }
+        body.dark-mode .analysis-content { color: #d0d0d0; }
+        body.dark-mode .markdown-content h1,
+        body.dark-mode .markdown-content h2,
+        body.dark-mode .markdown-content h3 { color: #e0e0e0; }
+        body.dark-mode .markdown-content code { background: #3d3d3d; color: #e0e0e0; }
+        body.dark-mode .markdown-content pre { background: #3d3d3d; }
+        body.dark-mode .markdown-content blockquote { border-left-color: #555; color: #999; }
+        body.dark-mode .markdown-content strong { color: #e0e0e0; }
+        body.dark-mode .markdown-content a { color: #64b5f6; }
+        body.dark-mode .markdown-content hr { border-top-color: #404040; }
+        body.dark-mode .panel-actions { background: #252525; border-top-color: #404040; }
+        body.dark-mode .btn-primary { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode .btn-primary:hover { background: #42a5f5; }
+        body.dark-mode .btn-secondary { background: #404040; color: #e0e0e0; }
+        body.dark-mode .btn-secondary:hover { background: #505050; }
+        body.dark-mode #context-menu { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .context-menu-item { color: #e0e0e0; }
+        body.dark-mode .context-menu-item:hover { background: #3d3d3d; }
+        body.dark-mode .context-menu-separator { background: #404040; }
+        body.dark-mode .settings-dropdown { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .settings-label { color: #e0e0e0; }
+        body.dark-mode .settings-option { background: #252525; border-color: #404040; color: #e0e0e0; }
+        body.dark-mode .settings-option:hover { background: #3d3d3d; }
+        body.dark-mode .settings-option.active { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode #comment-textarea { background: #252525; border-color: #404040; color: #e0e0e0; }
+        body.dark-mode .modal-content { background: #2d2d2d; }
+        body.dark-mode .modal-header { background: #252525; border-bottom-color: #404040; }
+        body.dark-mode .modal-title { color: #e0e0e0; }
+        body.dark-mode .modal-close { color: #999; }
+        body.dark-mode .modal-close:hover { color: #e0e0e0; }
+        body.dark-mode .modal-body { color: #d0d0d0; }
+        body.dark-mode .modal-body h1,
+        body.dark-mode .modal-body h2,
+        body.dark-mode .modal-body h3 { color: #e0e0e0; }
 
         /* Left Sidebar - TOC */
         #sidebar { width: 280px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 20px; flex-shrink: 0; }
@@ -265,6 +327,14 @@
                 <div class="settings-container">
                     <button class="settings-btn" onclick="toggleSettings(event)" title="Reading Settings">⚙️</button>
                     <div class="settings-dropdown" id="settings-dropdown">
+                        <div class="settings-section">
+                            <label class="settings-label">Theme</label>
+                            <div class="settings-options">
+                                <button class="settings-option active" onclick="setTheme('light')" data-theme="light">Light</button>
+                                <button class="settings-option" onclick="setTheme('dark')" data-theme="dark">Dark</button>
+                            </div>
+                        </div>
+                        
                         <div class="settings-section">
                             <label class="settings-label">Font Family</label>
                             <div class="settings-options">
@@ -1170,6 +1240,21 @@
             dropdown.classList.toggle('show');
         }
         
+        function setTheme(theme) {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+            localStorage.setItem('reader-theme', theme);
+            
+            // Update active button
+            document.querySelectorAll('.settings-option[data-theme]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
         // Close settings when clicking outside
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.settings-container')) {
@@ -1202,9 +1287,21 @@
         
         // Load saved settings on page load
         window.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('reader-theme');
             const savedFont = localStorage.getItem('reader-font');
             const savedSize = localStorage.getItem('reader-font-size');
             const savedHeight = localStorage.getItem('reader-line-height');
+            
+            // Apply saved theme
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.querySelectorAll('.settings-option[data-theme]').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.getAttribute('data-theme') === 'dark') {
+                        btn.classList.add('active');
+                    }
+                });
+            }
             
             if (savedFont) {
                 document.getElementById('book-content').style.fontFamily = savedFont;

@@ -6,7 +6,68 @@
     <title>Highlights - {{ book_title }} - My Reader with AI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📚</text></svg>">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; line-height: 1.6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; line-height: 1.6; transition: background-color 0.3s, color 0.3s; }
+        
+        /* Dark mode */
+        body.dark-mode { background: #1a1a1a; color: #e0e0e0; }
+        body.dark-mode .header { border-bottom-color: #404040; }
+        body.dark-mode h1 { color: #e0e0e0; }
+        body.dark-mode .back-link { color: #64b5f6; }
+        body.dark-mode .stats-bar { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .stat-item { color: #e0e0e0; }
+        body.dark-mode .filter-bar { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .filter-btn { background: #252525; border-color: #404040; color: #e0e0e0; }
+        body.dark-mode .filter-btn:hover { background: #3d3d3d; }
+        body.dark-mode .filter-btn.active { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode .highlight-item { background: #2d2d2d; border-left-color: #ffc107; }
+        body.dark-mode .highlight-item:hover { box-shadow: 0 2px 8px rgba(255,255,255,0.1); }
+        body.dark-mode .highlight-item.fact_check { background: #3d3520; }
+        body.dark-mode .highlight-item.discussion { background: #1d2d3d; }
+        body.dark-mode .highlight-item.comment { background: #1d3d2d; }
+        body.dark-mode .highlight-type { color: #ffd54f; }
+        body.dark-mode .highlight-chapter { color: #999; }
+        body.dark-mode .highlight-text { color: #d0d0d0; background: #252525; border-color: #404040; }
+        body.dark-mode .analysis-content { color: #d0d0d0; }
+        body.dark-mode .analysis-content code { background: #3d3d3d; }
+        body.dark-mode .analysis-content pre { background: #3d3d3d; }
+        body.dark-mode .analysis-content blockquote { border-left-color: #555; color: #999; }
+        body.dark-mode .analysis-content a { color: #64b5f6; }
+        body.dark-mode .highlight-actions { border-top-color: #404040; }
+        body.dark-mode .action-btn { background: #404040; color: #e0e0e0; }
+        body.dark-mode .action-btn:hover { background: #505050; }
+        body.dark-mode .action-btn.delete:hover { background: #5d2020; }
+        body.dark-mode .export-section { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .export-btn { background: #64b5f6; color: #1a1a1a; }
+        body.dark-mode .export-btn:hover { background: #42a5f5; }
+        body.dark-mode .warning-box { background: #3d2d1d; border-color: #ffc107; color: #ffd54f; }
+        body.dark-mode .empty-state { color: #666; }
+        
+        /* Theme toggle button */
+        .theme-toggle { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: white; 
+            border: 1px solid #ddd; 
+            font-size: 1.2em; 
+            cursor: pointer; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        .theme-toggle:hover { 
+            background: #f8f9fa; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        body.dark-mode .theme-toggle { 
+            background: #2d2d2d; 
+            border-color: #404040; 
+        }
+        body.dark-mode .theme-toggle:hover { 
+            background: #3d3d3d; 
+        }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .header { border-bottom: 2px solid #e9ecef; padding-bottom: 20px; margin-bottom: 30px; }
         .back-link { display: inline-block; color: #3498db; text-decoration: none; margin-bottom: 15px; font-size: 0.9em; }
@@ -71,6 +132,10 @@
     </style>
 </head>
 <body>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span id="theme-icon">🌙</span>
+    </button>
+    
     <div class="container">
         <div class="header">
             <a href="/" class="back-link">← Back to Library</a>
@@ -160,6 +225,31 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     
     <script>
+        // Theme toggle
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            
+            if (body.classList.contains('dark-mode')) {
+                body.classList.remove('dark-mode');
+                icon.textContent = '🌙';
+                localStorage.setItem('reader-theme', 'light');
+            } else {
+                body.classList.add('dark-mode');
+                icon.textContent = '☀️';
+                localStorage.setItem('reader-theme', 'dark');
+            }
+        }
+        
+        // Load saved theme
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('reader-theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.getElementById('theme-icon').textContent = '☀️';
+            }
+        });
+        
         // Configure marked for safe rendering
         marked.setOptions({
             breaks: true,
