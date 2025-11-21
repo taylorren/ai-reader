@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ book.metadata.title }}</title>
+    <title>{{ book.metadata.title }} - My Reader with AI</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📚</text></svg>">
     <style>
         /* Layout - Three Column */
         body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; }
@@ -118,34 +119,40 @@
 
         /* Saved Highlight markers - Color coded by type */
         .saved-highlight { 
-            cursor: pointer; 
-            transition: background 0.2s;
-            padding: 2px 0;
-            border-radius: 2px;
+            cursor: pointer !important;
+            transition: all 0.2s;
+            padding: 2px 4px;
+            border-radius: 3px;
         }
         
         /* Fact Check - Yellow */
         .saved-highlight[data-analysis-type="fact_check"] {
-            background: linear-gradient(180deg, transparent 60%, #ffeb3b 60%);
+            background-color: rgba(255, 235, 59, 0.35) !important;
+            box-shadow: 0 -3px 0 0 #ffeb3b inset !important;
         }
         .saved-highlight[data-analysis-type="fact_check"]:hover {
-            background: linear-gradient(180deg, transparent 60%, #fdd835 60%);
+            background-color: rgba(255, 235, 59, 0.5) !important;
+            box-shadow: 0 -4px 0 0 #fdd835 inset !important;
         }
         
         /* Discussion - Blue */
         .saved-highlight[data-analysis-type="discussion"] {
-            background: linear-gradient(180deg, transparent 60%, #90caf9 60%);
+            background-color: rgba(144, 202, 249, 0.35) !important;
+            box-shadow: 0 -3px 0 0 #90caf9 inset !important;
         }
         .saved-highlight[data-analysis-type="discussion"]:hover {
-            background: linear-gradient(180deg, transparent 60%, #64b5f6 60%);
+            background-color: rgba(144, 202, 249, 0.5) !important;
+            box-shadow: 0 -4px 0 0 #64b5f6 inset !important;
         }
         
         /* Comment - Green */
         .saved-highlight[data-analysis-type="comment"] {
-            background: linear-gradient(180deg, transparent 60%, #a5d6a7 60%);
+            background-color: rgba(165, 214, 167, 0.35) !important;
+            box-shadow: 0 -3px 0 0 #a5d6a7 inset !important;
         }
         .saved-highlight[data-analysis-type="comment"]:hover {
-            background: linear-gradient(180deg, transparent 60%, #81c784 60%);
+            background-color: rgba(165, 214, 167, 0.5) !important;
+            box-shadow: 0 -4px 0 0 #81c784 inset !important;
         }
         
         /* Comment input area */
@@ -423,6 +430,8 @@
                 const data = await response.json();
                 savedHighlights = data.highlights || [];
                 
+                console.log(`Loaded ${savedHighlights.length} highlights for chapter ${CHAPTER_INDEX}`);
+                
                 // Apply highlights to the content
                 applyHighlights();
             } catch (error) {
@@ -433,9 +442,22 @@
         // Apply highlights using Range-based approach (industry standard)
         // This is how tools like Hypothesis, Medium, and Google Docs do it
         function applyHighlights() {
-            if (savedHighlights.length === 0) return;
-            
             const bookContent = document.getElementById('book-content');
+            
+            // Clear existing highlights first and normalize text nodes
+            const existingHighlights = bookContent.querySelectorAll('.saved-highlight');
+            existingHighlights.forEach(span => {
+                const parent = span.parentNode;
+                while (span.firstChild) {
+                    parent.insertBefore(span.firstChild, span);
+                }
+                parent.removeChild(span);
+            });
+            
+            // Normalize text nodes to merge adjacent text nodes
+            bookContent.normalize();
+            
+            if (savedHighlights.length === 0) return;
             
             // Find all text ranges first, then wrap them
             const ranges = [];
@@ -453,6 +475,8 @@
                         highlight: highlight,
                         analysisType: analysisType
                     });
+                } else {
+                    console.warn('Could not find text for highlight:', text.substring(0, 50) + '...');
                 }
             });
             
@@ -461,35 +485,79 @@
                 return b.range.compareBoundaryPoints(Range.START_TO_START, a.range);
             });
             
-            // Wrap each range in a span (manual method to handle complex cases)
+            // Apply highlights by marking affected elements
             ranges.forEach((item) => {
                 try {
-                    const span = document.createElement('span');
-                    span.className = 'saved-highlight';
-                    span.setAttribute('data-highlight-id', item.highlight.id);
-                    span.setAttribute('data-analysis-type', item.analysisType);
+                    const range = item.range;
+                    const commonAncestor = range.commonAncestorContainer;
                     
-                    // Add tooltip based on type
-                    const tooltips = {
-                        'fact_check': '📋 Fact Check - Click to view',
-                        'discussion': '💡 Discussion - Click to view',
-                        'comment': '💬 Your Comment - Click to view/edit'
-                    };
-                    span.title = tooltips[item.analysisType] || 'Click to view';
+                    // Get all elements within the range
+                    const walker = document.createTreeWalker(
+                        commonAncestor.nodeType === Node.ELEMENT_NODE ? commonAncestor : commonAncestor.parentElement,
+                        NodeFilter.SHOW_ELEMENT,
+                        {
+                            acceptNode: function(node) {
+                                const nodeRange = document.createRange();
+                                nodeRange.selectNodeContents(node);
+                                
+                                // Check if this node intersects with our highlight range
+                                if (range.compareBoundaryPoints(Range.END_TO_START, nodeRange) < 0 &&
+                                    range.compareBoundaryPoints(Range.START_TO_END, nodeRange) > 0) {
+                                    return NodeFilter.FILTER_ACCEPT;
+                                }
+                                return NodeFilter.FILTER_SKIP;
+                            }
+                        }
+                    );
                     
-                    span.onclick = () => showSavedAnalysis(item.highlight);
+                    const elements = [];
+                    let node;
+                    while (node = walker.nextNode()) {
+                        if (node.tagName === 'P' || node.tagName === 'DIV') {
+                            elements.push(node);
+                        }
+                    }
                     
-                    // Extract contents and wrap them
-                    const contents = item.range.extractContents();
-                    span.appendChild(contents);
-                    item.range.insertNode(span);
+                    // If no block elements found, try to wrap inline
+                    if (elements.length === 0) {
+                        const span = document.createElement('span');
+                        span.className = 'saved-highlight';
+                        span.setAttribute('data-highlight-id', item.highlight.id);
+                        span.setAttribute('data-analysis-type', item.analysisType);
+                        span.title = '📋 Click to view';
+                        span.onclick = () => showSavedAnalysis(item.highlight);
+                        
+                        try {
+                            range.surroundContents(span);
+                        } catch (e) {
+                            const contents = range.extractContents();
+                            span.appendChild(contents);
+                            range.insertNode(span);
+                        }
+                    } else {
+                        // Mark each paragraph with highlight data
+                        elements.forEach(el => {
+                            el.classList.add('saved-highlight');
+                            el.setAttribute('data-highlight-id', item.highlight.id);
+                            el.setAttribute('data-analysis-type', item.analysisType);
+                            el.style.cursor = 'pointer';
+                            el.onclick = () => showSavedAnalysis(item.highlight);
+                            
+                            const tooltips = {
+                                'fact_check': '📋 Fact Check - Click to view',
+                                'discussion': '💡 Discussion - Click to view',
+                                'comment': '💬 Your Comment - Click to view/edit'
+                            };
+                            el.title = tooltips[item.analysisType] || 'Click to view';
+                        });
+                    }
                 } catch (e) {
                     console.error(`Failed to apply highlight ${item.highlight.id}:`, e);
                 }
             });
         }
         
-        // Find text range in element (standard text search algorithm)
+        // Find text range in element with whitespace-tolerant matching
         function findTextRange(element, searchText) {
             const walker = document.createTreeWalker(
                 element,
@@ -512,13 +580,29 @@
                 fullText += node.textContent;
             }
             
-            // Find the search text position
-            const searchIndex = fullText.indexOf(searchText);
+            // Try exact match first
+            let searchIndex = fullText.indexOf(searchText);
+            let searchLength = searchText.length;
+            
+            // If no exact match, try with normalized whitespace
             if (searchIndex === -1) {
-                return null;
+                // Create regex that allows flexible whitespace
+                const pattern = searchText
+                    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
+                    .replace(/\s+/g, '\\s+'); // Allow any whitespace
+                
+                const regex = new RegExp(pattern);
+                const match = fullText.match(regex);
+                
+                if (!match) {
+                    return null;
+                }
+                
+                searchIndex = match.index;
+                searchLength = match[0].length;
             }
             
-            const searchEnd = searchIndex + searchText.length;
+            const searchEnd = searchIndex + searchLength;
             
             // Find which text nodes contain the search text
             let startNode = null, startOffset = 0;
@@ -775,6 +859,9 @@
                     currentAnalysisId = saveData.analysis_id;
                     document.getElementById('saved-indicator').classList.add('show');
                     saveBtn.textContent = '已保存';
+                    
+                    // Reload highlights to show the new one
+                    await loadSavedHighlights();
                 } else {
                     saveBtn.disabled = false;
                     saveBtn.textContent = '保存失败';

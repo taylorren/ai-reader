@@ -14,7 +14,6 @@ wheels/
 .idea/
 
 # Custom
-*_data/
 *.epub
 
 # Books directory (but keep the folder structure)

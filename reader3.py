@@ -369,7 +369,7 @@ if __name__ == "__main__":
     # Use the actual book title for folder name (supports Chinese!)
     book_title = temp_metadata.title or os.path.splitext(os.path.basename(epub_file))[0]
     safe_title = sanitize_folder_name(book_title)
-    out_dir = os.path.join(books_dir, safe_title + "_data")
+    out_dir = os.path.join(books_dir, safe_title)
     
     # If folder exists, add a number suffix
     if os.path.exists(out_dir):

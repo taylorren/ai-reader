@@ -97,19 +97,19 @@ async def library_view(request: Request):
     # Create books directory if it doesn't exist
     os.makedirs(BOOKS_DIR, exist_ok=True)
 
-    # Scan directory for folders ending in '_data' that have a book.pkl
+    # Scan directory for folders that have a book.pkl
     for item in os.listdir(BOOKS_DIR):
         item_path = os.path.join(BOOKS_DIR, item)
-        # Check if it's a directory and ends with '_data' (including _data_1, _data_2, etc.)
-        if os.path.isdir(item_path) and "_data" in item:
+        # Check if it's a directory and has book.pkl
+        if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, "book.pkl")):
             # Try to load it to get the title
             book = load_book_cached(item)
             if book:
                 # Extract folder suffix if it exists (e.g., "_1", "_2")
                 folder_suffix = None
-                # Check if there's a number after _data
-                if "_data_" in item:
-                    suffix_num = item.split("_data_")[-1]
+                # Check if there's a number suffix
+                if item.endswith(tuple(f"_{i}" for i in range(1, 100))):
+                    suffix_num = item.split("_")[-1]
                     folder_suffix = f"Copy {suffix_num}"
                 
                 books.append({
@@ -126,6 +126,24 @@ async def library_view(request: Request):
 async def redirect_to_first_chapter(book_id: str):
     """Helper to just go to chapter 0."""
     return await read_chapter(book_id=book_id, chapter_index=0)
+
+@app.get("/read/{book_id}/images/{image_name}")
+async def serve_image(book_id: str, image_name: str):
+    """
+    Serves images specifically for a book.
+    The HTML contains <img src="images/pic.jpg">.
+    The browser resolves this to /read/{book_id}/images/pic.jpg.
+    """
+    # Security check: ensure book_id is clean
+    safe_book_id = os.path.basename(book_id)
+    safe_image_name = os.path.basename(image_name)
+
+    img_path = os.path.join(BOOKS_DIR, safe_book_id, "images", safe_image_name)
+
+    if not os.path.exists(img_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return FileResponse(img_path)
 
 @app.get("/read/{book_id}/{chapter_ref:path}", response_class=HTMLResponse)
 async def read_chapter(request: Request, book_id: str, chapter_ref: str):
@@ -171,24 +189,6 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         "prev_idx": prev_idx,
         "next_idx": next_idx
     })
-
-@app.get("/read/{book_id}/images/{image_name}")
-async def serve_image(book_id: str, image_name: str):
-    """
-    Serves images specifically for a book.
-    The HTML contains <img src="images/pic.jpg">.
-    The browser resolves this to /read/{book_id}/images/pic.jpg.
-    """
-    # Security check: ensure book_id is clean
-    safe_book_id = os.path.basename(book_id)
-    safe_image_name = os.path.basename(image_name)
-
-    img_path = os.path.join(BOOKS_DIR, safe_book_id, "images", safe_image_name)
-
-    if not os.path.exists(img_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    return FileResponse(img_path)
 
 
 # AI-related endpoints
@@ -419,5 +419,5 @@ async def upload_book(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting server at http://127.0.0.1:8123")
-    uvicorn.run(app, host="127.0.0.1", port=8123)
+    print("Starting server at http://0.0.0.0:8123 (accessible externally if firewall/NAT allow)")
+    uvicorn.run(app, host="0.0.0.0", port=8123)
