@@ -800,6 +800,18 @@
                 setTimeout(restoreScroll, 100);
             }
             
+            // Scroll TOC to show active item
+            const activeLink = document.querySelector('.toc-link.active');
+            if (activeLink) {
+                const sidebar = document.getElementById('sidebar');
+                const linkTop = activeLink.offsetTop;
+                const linkHeight = activeLink.offsetHeight;
+                const sidebarHeight = sidebar.clientHeight;
+                
+                // Scroll so active item is roughly in the middle of the sidebar
+                sidebar.scrollTop = linkTop - (sidebarHeight / 2) + (linkHeight / 2);
+            }
+            
             // Setup progress saving on navigation
             setupProgressSaving();
         });
