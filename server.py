@@ -134,11 +134,13 @@ async def serve_image(book_id: str, image_name: str):
     The HTML contains <img src="images/pic.jpg">.
     The browser resolves this to /read/{book_id}/images/pic.jpg.
     """
-    # Security check: ensure book_id is clean
-    safe_book_id = os.path.basename(book_id)
-    safe_image_name = os.path.basename(image_name)
+    # Security check: prevent path traversal
+    if ".." in book_id or "/" in book_id or "\\" in book_id:
+        raise HTTPException(status_code=400, detail="Invalid book ID")
+    if ".." in image_name or "/" in image_name or "\\" in image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name")
 
-    img_path = os.path.join(BOOKS_DIR, safe_book_id, "images", safe_image_name)
+    img_path = os.path.join(BOOKS_DIR, book_id, "images", image_name)
 
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
