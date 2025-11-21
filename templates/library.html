@@ -77,13 +77,15 @@
             <!-- Existing Books -->
             {% for book in books %}
             <div class="book-card" data-book-id="{{ book.id }}">
-                <div class="book-cover">
-                    {% if book.cover %}
-                    <img src="/read/{{ book.id }}/images/{{ book.cover }}" alt="{{ book.title }}" onerror="this.parentElement.innerHTML='📚'">
-                    {% else %}
-                    📚
-                    {% endif %}
-                </div>
+                <a href="/read/{{ book.id }}/0" style="text-decoration: none;">
+                    <div class="book-cover">
+                        {% if book.cover %}
+                        <img src="/read/{{ book.id }}/images/{{ book.cover }}" alt="{{ book.title }}" onerror="this.parentElement.innerHTML='📚'">
+                        {% else %}
+                        📚
+                        {% endif %}
+                    </div>
+                </a>
                 <div class="book-info">
                     <div class="book-title">{{ book.title }}</div>
                     <div class="book-meta">
@@ -99,7 +101,7 @@
                     <div style="position: relative;">
                         <button class="menu-btn" onclick="toggleMenu('{{ book.id }}', event)">⋮</button>
                         <div id="menu-{{ book.id }}" class="dropdown-menu">
-                            <div class="dropdown-item" onclick="viewHighlights('{{ book.id }}', event)">📝 View Highlights</div>
+                            <div class="dropdown-item" onclick="viewHighlights('{{ book.id }}', event)">View Highlights</div>
                             <div class="dropdown-item danger" onclick="deleteBook('{{ book.id }}', event)">Delete Book</div>
                         </div>
                     </div>
@@ -223,9 +225,48 @@
             }
         }
 
+        // Drag and drop functionality
+        const bookGrid = document.querySelector('.book-grid');
+        
+        bookGrid.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            bookGrid.style.opacity = '0.7';
+            bookGrid.style.background = '#e3f2fd';
+        });
+        
+        bookGrid.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            bookGrid.style.opacity = '1';
+            bookGrid.style.background = '';
+        });
+        
+        bookGrid.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            bookGrid.style.opacity = '1';
+            bookGrid.style.background = '';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.endsWith('.epub')) {
+                    uploadFile(file);
+                } else {
+                    alert('Please drop an EPUB file');
+                }
+            }
+        });
+
         async function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            uploadFile(file);
+        }
+        
+        async function uploadFile(file) {
 
             const statusDiv = document.getElementById('upload-status');
             const statusMessage = document.getElementById('status-message');
@@ -267,8 +308,6 @@
                 progressFill.style.width = '0%';
             }
 
-            // Reset file input
-            event.target.value = '';
         }
     </script>
 </body>

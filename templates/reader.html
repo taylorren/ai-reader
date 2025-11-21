@@ -32,13 +32,14 @@
 
         /* Navigation Footer */
         .chapter-nav { display: flex; justify-content: space-between; margin-top: 60px; padding-top: 20px; border-top: 1px solid #eee; font-family: -apple-system, sans-serif; }
+        .chapter-nav.sticky { position: sticky; top: 0; z-index: 100; background: white; margin-top: 0; padding: 15px 0; border-top: none; border-bottom: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .nav-btn { text-decoration: none; color: #3498db; font-weight: bold; padding: 10px 20px; border: 1px solid #3498db; border-radius: 4px; transition: all 0.2s; }
         .nav-btn:hover { background: #3498db; color: white; }
         .nav-btn.disabled { opacity: 0.5; pointer-events: none; border-color: #ccc; color: #ccc; }
 
         /* Right Panel - AI Analysis */
         #ai-panel { width: 400px; background: #fafbfc; border-left: 1px solid #e9ecef; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
-        #ai-panel.hidden { display: none; }
+        #ai-panel.hidden { display: none !important; }
         
         .panel-header { padding: 20px; border-bottom: 1px solid #e9ecef; background: white; }
         .panel-title { font-family: -apple-system, sans-serif; font-size: 1.1em; font-weight: bold; color: #333; margin: 0; }
@@ -99,33 +100,31 @@
         .saved-indicator { color: #28a745; font-size: 0.85em; margin-top: 10px; display: none; }
         .saved-indicator.show { display: block; }
 
-        /* Saved Highlight markers */
+        /* Saved Highlight markers - Color coded by type */
         .saved-highlight { 
-            background: linear-gradient(180deg, transparent 60%, #ffeb3b 60%);
             cursor: pointer; 
-            position: relative;
             transition: background 0.2s;
             padding: 2px 0;
+            border-radius: 2px;
         }
-        .saved-highlight:hover { 
+        
+        /* Fact Check - Yellow */
+        .saved-highlight[data-analysis-type="fact_check"] {
+            background: linear-gradient(180deg, transparent 60%, #ffeb3b 60%);
+        }
+        .saved-highlight[data-analysis-type="fact_check"]:hover {
             background: linear-gradient(180deg, transparent 60%, #fdd835 60%);
         }
-        .saved-highlight::before {
-            content: attr(data-analysis-type);
-            position: absolute;
-            left: -20px;
-            top: 0;
-            font-size: 0.9em;
+        
+        /* Discussion - Blue */
+        .saved-highlight[data-analysis-type="discussion"] {
+            background: linear-gradient(180deg, transparent 60%, #90caf9 60%);
         }
-        .saved-highlight[data-analysis-type="fact_check"]::before {
-            content: "📋";
+        .saved-highlight[data-analysis-type="discussion"]:hover {
+            background: linear-gradient(180deg, transparent 60%, #64b5f6 60%);
         }
-        .saved-highlight[data-analysis-type="discussion"]::before {
-            content: "💡";
-        }
-        .saved-highlight[data-analysis-type="comment"]::before {
-            content: "💬";
-        }
+        
+        /* Comment - Green */
         .saved-highlight[data-analysis-type="comment"] {
             background: linear-gradient(180deg, transparent 60%, #a5d6a7 60%);
         }
@@ -160,6 +159,19 @@
             color: #333;
             font-family: -apple-system, sans-serif;
         }
+        
+        /* Modal for internal links (footnotes, comments) */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: white; max-width: 700px; max-height: 80vh; overflow-y: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative; margin: 20px; }
+        .modal-header { padding: 20px; border-bottom: 1px solid #e9ecef; background: #f8f9fa; border-radius: 8px 8px 0 0; }
+        .modal-title { font-family: -apple-system, sans-serif; font-size: 1.1em; font-weight: bold; color: #333; margin: 0; }
+        .modal-close { position: absolute; top: 15px; right: 20px; cursor: pointer; color: #999; font-size: 1.5em; line-height: 1; }
+        .modal-close:hover { color: #333; }
+        .modal-body { padding: 30px; line-height: 1.8; font-size: 1.05em; color: #212529; }
+        .modal-body img { max-width: 100%; height: auto; }
+        .modal-body h1, .modal-body h2, .modal-body h3 { font-family: -apple-system, sans-serif; margin-top: 1.5em; color: #333; }
+        .modal-body p { margin-bottom: 1.5em; }
     </style>
 </head>
 <body>
@@ -192,10 +204,30 @@
     <!-- Main Content - Center -->
     <div id="main">
         <div class="content-container">
+            <!-- Top Navigation (Sticky) -->
+            <div class="chapter-nav sticky">
+                {% if prev_idx is not none %}
+                    <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← 上一章</a>
+                {% else %}
+                    <span class="nav-btn disabled">← 上一章</span>
+                {% endif %}
+
+                <span style="color: #999; padding: 10px;">
+                    第 {{ chapter_index + 1 }} / {{ book.spine|length }} 节
+                </span>
+
+                {% if next_idx is not none %}
+                    <a href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">下一章 →</a>
+                {% else %}
+                    <span class="nav-btn disabled">下一章 →</span>
+                {% endif %}
+            </div>
+            
             <div class="book-content" id="book-content">
                 {{ current_chapter.content | safe }}
             </div>
 
+            <!-- Bottom Navigation -->
             <div class="chapter-nav">
                 {% if prev_idx is not none %}
                     <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← 上一章</a>
@@ -231,7 +263,7 @@
             
             <div class="analysis-box" id="analysis-box">
                 <div class="analysis-type" id="panel-analysis-type"></div>
-                <div class="analysis-content markdown-content" id="panel-analysis-content"></div>
+                <div class="analysis-content markdown-content" id="panel-analysis-content">
                     <div class="loading">等待分析...</div>
                 </div>
             </div>
@@ -274,20 +306,33 @@
     <!-- Context Menu -->
     <div id="context-menu">
         <div class="context-menu-item" onclick="handleContextAction('fact_check')">
-            📋 事实核查
+            事实核查
         </div>
         <div class="context-menu-item" onclick="handleContextAction('discussion')">
-            💡 深入讨论
+            深入讨论
         </div>
         <div class="context-menu-item" onclick="handleContextAction('comment')">
-            💬 添加笔记
+            添加笔记
         </div>
     </div>
 
     <!-- Toggle Panel Button (when panel is hidden) -->
-    <button class="toggle-panel-btn" id="toggle-panel-btn" onclick="togglePanel()">
-        🤖
+    <button class="toggle-panel-btn" id="toggle-panel-btn" onclick="togglePanel()" title="Open AI Panel">
+        AI
     </button>
+    
+    <!-- Modal for internal links -->
+    <div class="modal-overlay" id="link-modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+                <h3 class="modal-title" id="modal-title">Reference</h3>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Loading...
+            </div>
+        </div>
+    </div>
 
     <!-- Markdown parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
@@ -376,6 +421,15 @@
                     span.className = 'saved-highlight';
                     span.setAttribute('data-highlight-id', item.highlight.id);
                     span.setAttribute('data-analysis-type', item.analysisType);
+                    
+                    // Add tooltip based on type
+                    const tooltips = {
+                        'fact_check': '📋 Fact Check - Click to view',
+                        'discussion': '💡 Discussion - Click to view',
+                        'comment': '💬 Your Comment - Click to view/edit'
+                    };
+                    span.title = tooltips[item.analysisType] || 'Click to view';
+                    
                     span.onclick = () => showSavedAnalysis(item.highlight);
                     
                     // Extract contents and wrap them
@@ -881,13 +935,82 @@
             }
         }
 
-        // ESC to close panel
+        // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
+            // Don't trigger if user is typing in a text field
+            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+                return;
+            }
+            
             if (e.key === 'Escape') {
                 closePanel();
                 hideContextMenu();
+                closeModal();
+            } else if (e.key === 'ArrowLeft') {
+                // Previous chapter - find the first prev button that's not disabled
+                const prevBtn = document.querySelector('.chapter-nav a.nav-btn:first-child:not(.disabled)');
+                if (prevBtn) {
+                    e.preventDefault();
+                    window.location.href = prevBtn.href;
+                }
+            } else if (e.key === 'ArrowRight') {
+                // Next chapter - find the last next button that's not disabled
+                const nextBtn = document.querySelector('.chapter-nav a.nav-btn:last-child:not(.disabled)');
+                if (nextBtn) {
+                    e.preventDefault();
+                    window.location.href = nextBtn.href;
+                }
             }
         });
+        
+        // Intercept internal links and show in modal
+        document.getElementById('book-content').addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.href) {
+                const url = new URL(link.href);
+                // Check if it's an internal link to this book
+                if (url.pathname.includes('/read/')) {
+                    e.preventDefault();
+                    showLinkModal(url.pathname);
+                }
+            }
+        });
+        
+        async function showLinkModal(path) {
+            const modal = document.getElementById('link-modal');
+            const modalBody = document.getElementById('modal-body');
+            const modalTitle = document.getElementById('modal-title');
+            
+            modal.classList.add('show');
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Loading...</div>';
+            modalTitle.textContent = 'Reference';
+            
+            try {
+                const response = await fetch(path);
+                const html = await response.text();
+                
+                // Parse the HTML to extract just the content
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.book-content');
+                
+                if (content) {
+                    modalBody.innerHTML = content.innerHTML;
+                } else {
+                    modalBody.innerHTML = '<p>Content not found</p>';
+                }
+            } catch (error) {
+                modalBody.innerHTML = '<p>Error loading content</p>';
+                console.error('Error loading modal content:', error);
+            }
+        }
+        
+        function closeModal(event) {
+            // Only close if clicking overlay or close button, not the content
+            if (!event || event.target.id === 'link-modal' || event.target.classList.contains('modal-close')) {
+                document.getElementById('link-modal').classList.remove('show');
+            }
+        }
     </script>
 </body>
 </html>

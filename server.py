@@ -127,9 +127,28 @@ async def redirect_to_first_chapter(book_id: str):
     """Helper to just go to chapter 0."""
     return await read_chapter(book_id=book_id, chapter_index=0)
 
-@app.get("/read/{book_id}/{chapter_index}", response_class=HTMLResponse)
-async def read_chapter(request: Request, book_id: str, chapter_index: int):
-    """The main reader interface."""
+@app.get("/read/{book_id}/{chapter_ref:path}", response_class=HTMLResponse)
+async def read_chapter(request: Request, book_id: str, chapter_ref: str):
+    """The main reader interface. Accepts either chapter index (0, 1, 2) or filename (part0008.html)."""
+    
+    # Try to parse as integer first
+    try:
+        chapter_index = int(chapter_ref)
+    except ValueError:
+        # It's a filename, need to find the corresponding chapter index
+        book = load_book_cached(book_id)
+        chapter_index = None
+        
+        # Search through spine to find matching filename
+        for idx, item in enumerate(book.spine):
+            if item.href == chapter_ref or item.href.endswith(chapter_ref):
+                chapter_index = idx
+                break
+        
+        if chapter_index is None:
+            raise HTTPException(status_code=404, detail=f"Chapter file '{chapter_ref}' not found")
+    
+    # Now proceed with the chapter_index
     book = load_book_cached(book_id)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")

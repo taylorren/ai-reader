@@ -73,6 +73,7 @@
     <div class="container">
         <div class="header">
             <a href="/" class="back-link">← Back to Library</a>
+            <button class="export-btn" onclick="exportHighlights()">📥 Export</button>
             <h1>{{ book_title }}</h1>
             <div class="book-meta">All your highlights and notes</div>
             <div class="stats">
@@ -176,7 +177,10 @@
             });
         });
         
+        let currentFilter = 'all';
+        
         function filterHighlights(type) {
+            currentFilter = type;
             const items = document.querySelectorAll('.highlight-item');
             const buttons = document.querySelectorAll('.filter-btn');
             
@@ -192,6 +196,75 @@
                     item.style.display = 'none';
                 }
             });
+        }
+        
+        function exportHighlights() {
+            const items = document.querySelectorAll('.highlight-item');
+            const bookTitle = "{{ book_title }}";
+            const exportData = [];
+            
+            // Collect visible highlights
+            items.forEach(item => {
+                if (item.style.display !== 'none') {
+                    const type = item.dataset.type;
+                    const typeLabel = type === 'fact_check' ? 'Fact Check' : 
+                                     type === 'discussion' ? 'Discussion' : 'Comment';
+                    const chapter = item.querySelector('.highlight-chapter').textContent;
+                    const text = item.querySelector('.highlight-text').textContent.replace(/^"|"$/g, '');
+                    const analysisContent = item.querySelector('.analysis-content');
+                    const analysis = analysisContent ? analysisContent.textContent.trim() : '';
+                    
+                    exportData.push({
+                        type: typeLabel,
+                        chapter: chapter,
+                        text: text,
+                        analysis: analysis
+                    });
+                }
+            });
+            
+            // Create markdown format
+            let markdown = `# ${bookTitle} - Highlights\n\n`;
+            markdown += `Exported: ${new Date().toLocaleString()}\n`;
+            markdown += `Filter: ${currentFilter === 'all' ? 'All' : currentFilter.replace('_', ' ')}\n`;
+            markdown += `Total: ${exportData.length} highlights\n\n`;
+            markdown += `---\n\n`;
+            
+            exportData.forEach((item, index) => {
+                markdown += `## ${index + 1}. ${item.type}\n\n`;
+                markdown += `**${item.chapter}**\n\n`;
+                markdown += `> ${item.text}\n\n`;
+                if (item.analysis) {
+                    markdown += `### Analysis:\n\n${item.analysis}\n\n`;
+                }
+                markdown += `---\n\n`;
+            });
+            
+            // Check length and warn if too large
+            const charCount = markdown.length;
+            const tokenEstimate = Math.ceil(charCount / 4); // Rough estimate: 1 token ≈ 4 chars
+            
+            if (tokenEstimate > 100000) {
+                if (!confirm(`⚠️ Warning: Export is very large (~${tokenEstimate.toLocaleString()} tokens, ${(charCount/1000).toFixed(1)}K chars).\n\nThis exceeds most AI context limits (e.g., GPT-4: 128K, Claude: 200K).\n\nConsider filtering to reduce size.\n\nContinue export anyway?`)) {
+                    return;
+                }
+            } else if (tokenEstimate > 50000) {
+                if (!confirm(`⚠️ Notice: Export is large (~${tokenEstimate.toLocaleString()} tokens, ${(charCount/1000).toFixed(1)}K chars).\n\nThis may exceed some AI context limits.\n\nContinue export?`)) {
+                    return;
+                }
+            }
+            
+            // Download file
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const filename = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_highlights_${Date.now()}.md`;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
