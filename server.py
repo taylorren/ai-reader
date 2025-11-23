@@ -256,7 +256,7 @@ async def analyze_text(req: AIRequest):
         response = await service.discuss(req.selected_text, req.context)
     else:
         raise HTTPException(status_code=400, detail="Invalid analysis type")
-    
+
     return {
         "response": response,
         "status": "success"
