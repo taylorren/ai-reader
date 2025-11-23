@@ -256,7 +256,7 @@ async def analyze_text(req: AIRequest):
         response = await service.discuss(req.selected_text, req.context)
     else:
         raise HTTPException(status_code=400, detail="Invalid analysis type")
-    
+
     return {
         "response": response,
         "status": "success"
@@ -453,4 +453,4 @@ async def upload_book(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
     print("Starting server at http://0.0.0.0:8123 (accessible externally if firewall/NAT allow)")
-    uvicorn.run(app, host="0.0.0.0", port=8123)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

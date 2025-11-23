@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "AI Reader Assistant",
+  "version": "0.1",
+  "description": "Adds Fact-check and Discuss context menu items that call the ai-reader backend and show a right-side chat panel.",
+  "permissions": ["contextMenus", "tabs", "scripting", "storage", "activeTab"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content_script.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "48": "icons/icon48.png"
+  }
+}
