@@ -37,6 +37,11 @@ Edit `.env` file:
 OPENAI_API_KEY=your_deepseek_key
 OPENAI_BASE_URL=https://api.deepseek.com
 OPENAI_MODEL=deepseek-chat
+
+# Ollama (local)
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_API_KEY=ollama
+OLLAMA_MODEL=llama3
 ```
 
 Get your key from: https://platform.deepseek.com/api_keys
@@ -58,6 +63,13 @@ uv run reader3.py your_book.epub
 
 ```bash
 uv run server.py
+```
+
+The server listens on `0.0.0.0:8123` by default so other devices on your LAN can reach it.
+You can override that with:
+
+```bash
+READER_HOST=0.0.0.0 READER_PORT=8123 uv run server.py
 ```
 
 ### 4. Read and Analyze
@@ -161,6 +173,47 @@ copy reader_data.db backups\reader_data_backup.db
 ### Server Won't Start
 1. Check if port 8123 is available
 2. Verify `.env` configuration
+
+## Run At Startup On Linux
+
+This repo includes a systemd unit template and installer so the app can start on boot.
+The installed service runs the app with `uv run server.py`, matching the normal development command.
+
+### 1. Install dependencies
+
+```bash
+uv sync
+```
+
+### 2. Install the systemd service
+
+```bash
+sudo ./scripts/install-systemd-service.sh
+```
+
+This installs [deploy/reader3.service](/home/tr/projects/ai-reader/deploy/reader3.service), enables it, and starts it immediately.
+
+### 3. Check service status
+
+```bash
+systemctl status reader3.service
+```
+
+### 4. Open the port on the machine firewall if needed
+
+If you use UFW:
+
+```bash
+sudo ufw allow 8123/tcp
+```
+
+Then browse to `http://<your-linux-machine-ip>:8123` from another device on your home network.
+
+### 5. Find the machine IP
+
+```bash
+hostname -I
+```
 
 ## License
 

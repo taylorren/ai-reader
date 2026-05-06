@@ -1,0 +1,20 @@
+[Unit]
+Description=Reader3 EPUB server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__WORKDIR__
+Environment=PATH=__WORKDIR__/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=READER_HOST=0.0.0.0
+Environment=READER_PORT=8123
+ExecStart=__UV_BIN__ run server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

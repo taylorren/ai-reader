@@ -510,6 +510,20 @@
         let currentAnalysisType = "";
         let savedHighlights = []; // Store saved highlights for this chapter
 
+        function getAISettings() {
+            const mode = localStorage.getItem('ai-mode');
+
+            // Fallback/migration from old key.
+            const provider = mode
+                ? (mode === 'remote' ? 'deepseek' : 'ollama')
+                : (localStorage.getItem('ai-provider') || 'ollama');
+
+            return {
+                provider: provider,
+                mode: mode || (provider === 'deepseek' ? 'remote' : 'local')
+            };
+        }
+
         // Load saved highlights when page loads
         async function loadSavedHighlights() {
             try {
@@ -955,8 +969,12 @@
             document.getElementById('panel-selected-text').textContent = selectedText;
             document.getElementById('panel-analysis-type').textContent = 
                 actionType === 'fact_check' ? '解释说明' : '深入讨论';
+            const aiSettings = getAISettings();
+            const providerLabel = aiSettings.provider === 'ollama'
+                ? 'Local'
+                : 'Remote';
             document.getElementById('panel-analysis-content').innerHTML = 
-                '<div class="loading">正在分析中...</div>';
+                `<div class="loading">正在分析中... (${providerLabel})</div>`;
             
             // Disable save button
             document.getElementById('save-btn').disabled = true;
@@ -970,7 +988,8 @@
                         highlight_id: 0,  // Temporary, not saved yet
                         analysis_type: actionType,
                         selected_text: selectedText,
-                        context: selectedContext
+                        context: selectedContext,
+                        provider: aiSettings.provider
                     })
                 });
 

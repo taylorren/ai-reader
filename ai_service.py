@@ -1,5 +1,6 @@
 """
 AI service for fact-checking and discussion.
+Supports DeepSeek (remote) and Ollama (local) providers.
 """
 import os
 import httpx
@@ -7,17 +8,28 @@ from typing import Optional
 
 
 class AIService:
-    """Handles AI API calls."""
-    
+    """Handles AI API calls for both DeepSeek and Ollama providers."""
+
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        
-        if not self.api_key:
-            raise ValueError("API key not provided. Set OPENAI_API_KEY environment variable.")
-    
-    async def fact_check(self, text: str, context: str = "") -> str:
+
+        # Ollama settings are also configurable from .env
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        self.ollama_api_key = os.getenv("OLLAMA_API_KEY", "ollama")
+        self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
+
+    def _get_connection_params(self, provider: str, ollama_model: Optional[str]) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model) for the given provider."""
+        if provider == "ollama":
+            model = ollama_model or self.ollama_model
+            return self.ollama_base_url, self.ollama_api_key, model
+        # Default: deepseek / any OpenAI-compatible remote
+        return self.base_url, self.api_key, self.model
+
+    async def fact_check(self, text: str, context: str = "",
+                         provider: str = "deepseek", ollama_model: Optional[str] = None) -> str:
         """Quick explanation and fact-checking for unclear content."""
         prompt = f"""请帮我理解以下内容：
 
@@ -36,9 +48,10 @@ class AIService:
 - 如有错误或争议，明确指出
 - 如果内容不完整或无法判断，说明需要更多上下文"""
 
-        return await self._call_api(prompt)
+        return await self._call_api(prompt, provider=provider, ollama_model=ollama_model)
     
-    async def discuss(self, text: str, context: str = "") -> str:
+    async def discuss(self, text: str, context: str = "",
+                      provider: str = "deepseek", ollama_model: Optional[str] = None) -> str:
         """Generate insightful and academic discussion about the selected text."""
         prompt = f"""请对以下文本进行深入的学术性分析和讨论：
 
@@ -72,20 +85,31 @@ class AIService:
 - 如涉及专业术语，简要解释
 - 鼓励多角度、批判性的思考"""
 
-        return await self._call_api(prompt)
+        return await self._call_api(prompt, provider=provider, ollama_model=ollama_model)
     
-    async def _call_api(self, prompt: str) -> str:
+    async def _call_api(self, prompt: str, provider: str = "deepseek",
+                        ollama_model: Optional[str] = None,
+                        allow_fallback: bool = True) -> str:
         """Make API call to OpenAI-compatible endpoint."""
+        provider = (provider or "deepseek").lower()
+        if provider not in ("deepseek", "ollama"):
+            return "不支持的AI提供商。"
+
+        if provider == "deepseek" and not self.api_key:
+            return "DeepSeek 未配置。请设置 OPENAI_API_KEY，或切换到 Ollama。"
+
+        base_url, api_key, model = self._get_connection_params(provider, ollama_model)
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{base_url}/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {self.api_key}",
+                        "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": self.model,
+                        "model": model,
                         "messages": [
                             {"role": "user", "content": prompt}
                         ],
@@ -97,6 +121,14 @@ class AIService:
                 return data["choices"][0]["message"]["content"]
             
             except httpx.HTTPError as e:
+                if provider == "ollama" and allow_fallback and self.api_key:
+                    fallback_result = await self._call_api(
+                        prompt,
+                        provider="deepseek",
+                        ollama_model=None,
+                        allow_fallback=False,
+                    )
+                    return f"Ollama 不可用，已切换到 DeepSeek:\n\n{fallback_result}"
                 return f"API调用失败: {str(e)}"
             except Exception as e:
                 return f"处理失败: {str(e)}"

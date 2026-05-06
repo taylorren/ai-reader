@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Reader with AI</title>
+    <title>我的AI电子书阅读器</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📚</text></svg>">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; transition: background-color 0.3s, color 0.3s; }
@@ -114,6 +114,22 @@
         .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 1.2em; color: #999; pointer-events: none; }
         .book-card.hidden { display: none; }
         .no-results { text-align: center; padding: 40px; color: #999; font-size: 1.1em; grid-column: 1 / -1; }
+
+        /* AI settings */
+        .ai-settings { margin: 0 0 18px 0; padding: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+        .ai-settings-title { font-size: 0.92em; font-weight: 600; color: #333; margin-bottom: 10px; }
+        .ai-settings-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .ai-settings label { font-size: 0.88em; color: #555; }
+        .ai-radio-group { display: flex; gap: 16px; align-items: center; }
+        .ai-radio-option { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9em; }
+        .ai-radio-option input[type="radio"] { margin: 0; }
+        .ai-hint { font-size: 0.82em; color: #666; margin-top: 8px; }
+
+        body.dark-mode .ai-settings { background: #2d2d2d; border-color: #404040; }
+        body.dark-mode .ai-settings-title { color: #e0e0e0; }
+        body.dark-mode .ai-settings label { color: #c0c0c0; }
+        body.dark-mode .ai-radio-option { color: #e0e0e0; }
+        body.dark-mode .ai-hint { color: #9a9a9a; }
     </style>
 </head>
 <body>
@@ -122,12 +138,30 @@
     </button>
     
     <div class="container">
-        <h1>My Reader with AI</h1>
+        <h1>我的AI电子书阅读器</h1>
 
         <!-- Search Bar -->
         <div class="search-container">
             <input type="text" id="search-input" class="search-input" placeholder="Search books by title or author..." onkeyup="filterBooks()">
             <span class="search-icon">🔍</span>
+        </div>
+
+        <div class="ai-settings">
+            <div class="ai-settings-title">AI Mode</div>
+            <div class="ai-settings-row">
+                <label>Use:</label>
+                <div class="ai-radio-group" role="radiogroup" aria-label="AI mode">
+                    <label class="ai-radio-option" for="ai-mode-local">
+                        <input id="ai-mode-local" type="radio" name="ai-mode" value="local" onchange="saveAISettings()">
+                        <span>Local</span>
+                    </label>
+                    <label class="ai-radio-option" for="ai-mode-remote">
+                        <input id="ai-mode-remote" type="radio" name="ai-mode" value="remote" onchange="saveAISettings()">
+                        <span>Remote</span>
+                    </label>
+                </div>
+            </div>
+            <div class="ai-hint">Model/endpoint details are handled internally from server configuration.</div>
         </div>
 
         <div id="upload-status" class="upload-status">
@@ -167,7 +201,7 @@
                     {% endif %}
                 </div>
                 <div class="book-actions">
-                    <a href="/read/{{ book.id }}" class="btn">Read Book</a>
+                    <a href="/read/{{ book.id }}" class="btn">浏览本书</a>
                     <div style="position: relative;">
                         <button class="menu-btn" onclick="toggleMenu('{{ book.id }}', event)">⋮</button>
                         <div id="menu-{{ book.id }}" class="dropdown-menu">
@@ -212,7 +246,35 @@
                 document.body.classList.add('dark-mode');
                 document.getElementById('theme-icon').textContent = '☀️';
             }
+
+            loadAISettings();
         });
+
+        function loadAISettings() {
+            const savedMode = localStorage.getItem('ai-mode');
+
+            // Migrate old provider setting for backward compatibility.
+            let mode = savedMode;
+            if (!mode) {
+                const legacyProvider = localStorage.getItem('ai-provider');
+                mode = legacyProvider === 'deepseek' ? 'remote' : 'local';
+            }
+
+            const selectedMode = mode || 'local';
+            const target = document.querySelector(`input[name="ai-mode"][value="${selectedMode}"]`);
+            if (target) {
+                target.checked = true;
+            }
+        }
+
+        function saveAISettings() {
+            const selected = document.querySelector('input[name="ai-mode"]:checked');
+            const mode = selected ? selected.value : 'local';
+            const provider = mode === 'remote' ? 'deepseek' : 'ollama';
+
+            localStorage.setItem('ai-mode', mode);
+            localStorage.setItem('ai-provider', provider);
+        }
         
         function filterBooks() {
             const searchInput = document.getElementById('search-input');

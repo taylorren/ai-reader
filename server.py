@@ -67,6 +67,7 @@ class AIRequest(BaseModel):
     analysis_type: str  # 'fact_check' or 'discussion'
     selected_text: str
     context: str = ""
+    provider: str = "deepseek"  # 'deepseek' or 'ollama'
 
 # Where are the book folders located?
 BOOKS_DIR = "books"
@@ -248,12 +249,24 @@ async def analyze_text(req: AIRequest):
     service = get_ai_service()
     if not service:
         raise HTTPException(status_code=500, detail="AI service not configured. Please set OPENAI_API_KEY.")
+
+    provider = (req.provider or "deepseek").lower()
+    if provider not in ("deepseek", "ollama"):
+        raise HTTPException(status_code=400, detail="Invalid AI provider")
     
     # Call appropriate AI function
     if req.analysis_type == "fact_check":
-        response = await service.fact_check(req.selected_text, req.context)
+        response = await service.fact_check(
+            req.selected_text,
+            req.context,
+            provider=provider,
+        )
     elif req.analysis_type == "discussion":
-        response = await service.discuss(req.selected_text, req.context)
+        response = await service.discuss(
+            req.selected_text,
+            req.context,
+            provider=provider,
+        )
     else:
         raise HTTPException(status_code=400, detail="Invalid analysis type")
     
@@ -452,5 +465,7 @@ async def upload_book(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting server at http://0.0.0.0:8123 (accessible externally if firewall/NAT allow)")
-    uvicorn.run(app, host="0.0.0.0", port=8123)
+    host = os.getenv("READER_HOST", "0.0.0.0")
+    port = int(os.getenv("READER_PORT", "8123"))
+    print(f"Starting server at http://{host}:{port} (accessible externally if firewall/NAT allow)")
+    uvicorn.run(app, host=host, port=port)
