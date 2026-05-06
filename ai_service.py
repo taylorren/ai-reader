@@ -25,6 +25,21 @@ class AIService:
 
         return self.ollama_base_url, self.ollama_api_key, model
 
+    def _build_messages(self, prompt: str, provider: str) -> list[dict[str, str]]:
+        """Build chat messages with explicit Chinese output constraints."""
+        if provider == "ollama":
+            system_prompt = (
+                "你是中文阅读助手。必须仅使用简体中文回答。"
+                "不要输出英文句子，不要输出英文小标题；如需术语请给出中文解释。"
+            )
+        else:
+            system_prompt = "请使用简体中文回答，保持表达清晰、准确。"
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
     async def fact_check(self, text: str, context: str = "",
                          provider: str = "ollama", ollama_model: Optional[str] = None) -> str:
         """Quick explanation and fact-checking for unclear content."""
@@ -103,9 +118,7 @@ class AIService:
                     },
                     json={
                         "model": model,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
+                        "messages": self._build_messages(prompt, provider),
                         "temperature": 0.7
                     }
                 )

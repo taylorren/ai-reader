@@ -42,6 +42,11 @@ templates = Jinja2Templates(directory="templates")
 db = Database()
 ai_service = None  # Will be initialized on first use
 
+# Runtime settings for temporary overrides
+_runtime_settings = {
+    "provider_override": None,  # Temporarily override the default provider
+}
+
 def get_ai_service():
     """Lazy initialization of AI service."""
     global ai_service
@@ -68,6 +73,10 @@ class AIRequest(BaseModel):
     selected_text: str
     context: str = ""
     provider: str = "ollama_cloud"  # 'ollama' or 'ollama_cloud'
+
+
+class SettingsUpdate(BaseModel):
+    provider_override: Optional[str] = None  # 'ollama' or 'ollama_cloud' to override, None to reset to default
 
 # Where are the book folders located?
 BOOKS_DIR = "books"
@@ -250,7 +259,9 @@ async def analyze_text(req: AIRequest):
     if not service:
         raise HTTPException(status_code=500, detail="AI service not configured. Please check Ollama settings.")
 
-    provider = (req.provider or "ollama_cloud").lower()
+    # Use provider override if set, otherwise use request provider
+    provider = _runtime_settings["provider_override"] or req.provider or "ollama_cloud"
+    provider = provider.lower()
     if provider not in ("ollama", "ollama_cloud"):
         raise HTTPException(status_code=400, detail="Invalid AI provider")
     
@@ -272,6 +283,7 @@ async def analyze_text(req: AIRequest):
     
     return {
         "response": response,
+        "provider_used": provider,
         "status": "success"
     }
 
@@ -461,6 +473,39 @@ async def upload_book(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Processing timeout (file too large?)")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Settings endpoints for runtime configuration
+
+@app.get("/api/settings")
+async def get_settings():
+    """Get current settings including provider override status."""
+    return {
+        "provider_override": _runtime_settings["provider_override"],
+        "default_provider": os.getenv("OLLAMA_DEFAULT_PROVIDER", "ollama_cloud"),
+        "status": "success"
+    }
+
+
+@app.post("/api/settings")
+async def update_settings(settings: SettingsUpdate):
+    """Update runtime settings (provider override, etc.)."""
+    if settings.provider_override is not None:
+        provider = settings.provider_override.lower()
+        if provider not in ("ollama", "ollama_cloud"):
+            raise HTTPException(status_code=400, detail="Invalid provider. Must be 'ollama' or 'ollama_cloud'")
+        
+        _runtime_settings["provider_override"] = provider
+        print(f"✓ Provider override set to: {provider}")
+    else:
+        # Reset to default
+        _runtime_settings["provider_override"] = None
+        print(f"✓ Provider override cleared, using default")
+    
+    return {
+        "provider_override": _runtime_settings["provider_override"],
+        "status": "success"
+    }
 
 
 if __name__ == "__main__":

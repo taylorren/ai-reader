@@ -185,11 +185,24 @@
         .settings-section { margin-bottom: 15px; }
         .settings-section:last-child { margin-bottom: 0; }
         .settings-label { font-family: -apple-system, sans-serif; font-size: 0.85em; font-weight: 600; color: #333; margin-bottom: 8px; display: block; }
+        .settings-label.inline { margin: 0; }
+        .settings-switch-row { display: grid; grid-template-columns: 96px 1fr; align-items: center; column-gap: 10px; }
         .settings-options { display: flex; gap: 8px; flex-wrap: wrap; }
         .settings-option { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; font-size: 0.85em; transition: all 0.2s; font-family: -apple-system, sans-serif; }
         .settings-option:hover { background: #f8f9fa; }
         .settings-option.active { background: #3498db; color: white; border-color: #3498db; }
         .settings-slider { width: 100%; }
+        
+        /* Provider Toggle Switch */
+        .provider-toggle { display: flex; align-items: center; justify-self: end; gap: 8px; }
+        .toggle-switch { position: relative; width: 50px; height: 24px; background: #ddd; border-radius: 12px; cursor: pointer; transition: background 0.3s; }
+        .toggle-switch.active { background: #3498db; }
+        .toggle-switch-slider { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: left 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .toggle-switch.active .toggle-switch-slider { left: 28px; }
+        .toggle-label { min-width: 38px; text-align: center; font-size: 0.75em; color: #666; font-family: -apple-system, sans-serif; }
+        body.dark-mode .toggle-switch { background: #404040; }
+        body.dark-mode .toggle-switch-slider { background: #2d2d2d; }
+        body.dark-mode .toggle-label { color: #999; }
         .settings-value { font-size: 0.85em; color: #666; margin-top: 5px; text-align: center; }
 
         /* Saved indicator */
@@ -328,10 +341,28 @@
                     <button class="settings-btn" onclick="toggleSettings(event)" title="Reading Settings">⚙️</button>
                     <div class="settings-dropdown" id="settings-dropdown">
                         <div class="settings-section">
-                            <label class="settings-label">Theme</label>
-                            <div class="settings-options">
-                                <button class="settings-option active" onclick="setTheme('light')" data-theme="light">Light</button>
-                                <button class="settings-option" onclick="setTheme('dark')" data-theme="dark">Dark</button>
+                            <div class="settings-switch-row">
+                                <label class="settings-label inline">AI Provider</label>
+                                <div class="provider-toggle">
+                                    <span class="toggle-label">Local</span>
+                                    <div class="toggle-switch" id="provider-toggle" onclick="toggleAIProvider()">
+                                        <div class="toggle-switch-slider"></div>
+                                    </div>
+                                    <span class="toggle-label">Cloud</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <div class="settings-switch-row">
+                                <label class="settings-label inline">Theme</label>
+                                <div class="provider-toggle">
+                                    <span class="toggle-label">Light</span>
+                                    <div class="toggle-switch" id="theme-toggle" onclick="toggleTheme()">
+                                        <div class="toggle-switch-slider"></div>
+                                    </div>
+                                    <span class="toggle-label">Dark</span>
+                                </div>
                             </div>
                         </div>
                         
@@ -509,6 +540,8 @@
         let currentAnalysisId = null;
         let currentAnalysisType = "";
         let savedHighlights = []; // Store saved highlights for this chapter
+        let serverProviderOverride = null; // Server-side override from /api/settings
+        let serverDefaultProvider = 'ollama_cloud'; // Server's default provider
 
         function getAISettings() {
             const mode = localStorage.getItem('ai-mode');
@@ -516,12 +549,97 @@
             // Fallback/migration from old key.
             const provider = mode
                 ? (mode === 'remote' ? 'ollama_cloud' : 'ollama')
-                : (localStorage.getItem('ai-provider') || 'ollama');
+                : (localStorage.getItem('ai-provider') || serverDefaultProvider);
+
+            // Use server override if set, otherwise use local choice
+            const effectiveProvider = serverProviderOverride || provider;
 
             return {
-                provider: provider,
-                mode: mode || (provider === 'ollama_cloud' || provider === 'deepseek' ? 'remote' : 'local')
+                provider: effectiveProvider,
+                mode: mode || (effectiveProvider === 'ollama_cloud' || effectiveProvider === 'deepseek' ? 'remote' : 'local'),
+                serverOverride: serverProviderOverride
             };
+        }
+
+        // Initialize provider UI and load server settings
+        async function initializeProviderUI() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                serverProviderOverride = data.provider_override;
+                serverDefaultProvider = data.default_provider || 'ollama_cloud';
+                console.log('Server settings loaded:', { override: serverProviderOverride, default: serverDefaultProvider });
+                updateProviderUI();
+            } catch (error) {
+                console.error('Failed to load server settings:', error);
+            }
+        }
+
+        // Update provider UI buttons to show current state
+        function updateProviderUI() {
+            const settings = getAISettings();
+            const currentProvider = settings.provider;
+            
+            console.log('Updating provider UI with:', { currentProvider, serverOverride: serverProviderOverride });
+            
+            // Update toggle state (cloud = right/active, local = left/inactive)
+            const toggle = document.getElementById('provider-toggle');
+            if (toggle) {
+                if (currentProvider === 'ollama_cloud') {
+                    toggle.classList.add('active');
+                    console.log('Toggle set to ACTIVE (Cloud)');
+                } else {
+                    toggle.classList.remove('active');
+                    console.log('Toggle set to INACTIVE (Local)');
+                }
+            } else {
+                console.warn('Toggle element not found!');
+            }
+        }
+
+        // Toggle AI provider (local or cloud)
+        async function toggleAIProvider() {
+            console.log('toggleAIProvider called');
+            const settings = getAISettings();
+            const newProvider = settings.provider === 'ollama' ? 'ollama_cloud' : 'ollama';
+            
+            console.log('Current provider:', settings.provider, '-> New provider:', newProvider);
+            
+            try {
+                // Update server settings with override
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider_override: newProvider })
+                });
+                
+                const data = await response.json();
+                console.log('Server response:', data);
+                serverProviderOverride = data.provider_override;
+                updateProviderUI();
+                console.log('Provider switched to:', newProvider);
+            } catch (error) {
+                console.error('Failed to toggle AI provider:', error);
+            }
+        }
+
+        // Set AI provider (local or cloud)
+        async function setAIProvider(provider) {
+            try {
+                // Update server settings with override
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider_override: provider })
+                });
+                
+                const data = await response.json();
+                serverProviderOverride = data.provider_override;
+                updateProviderUI();
+                console.log('Provider switched to:', provider);
+            } catch (error) {
+                console.error('Failed to set AI provider:', error);
+            }
         }
 
         // Load saved highlights when page loads
@@ -793,6 +911,7 @@
 
         // Load highlights and restore scroll position when page loads
         window.addEventListener('DOMContentLoaded', function() {
+            initializeProviderUI();  // Load server settings
             loadSavedHighlights();
             
             // Restore scroll position
@@ -997,7 +1116,10 @@
                 
                 if (aiData.status === 'success') {
                     // Render markdown
-                    document.getElementById('panel-analysis-content').innerHTML = marked.parse(aiData.response);
+                    const providerUsed = aiData.provider_used === 'ollama' ? '🏠 Local' : '☁️ Cloud';
+                    const responseHTML = `<div class="provider-badge" style="font-size: 0.85em; color: #999; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;">Using: ${providerUsed}</div>` + 
+                        marked.parse(aiData.response);
+                    document.getElementById('panel-analysis-content').innerHTML = responseHTML;
                     // Enable save button
                     document.getElementById('save-btn').disabled = false;
                 } else {
@@ -1346,6 +1468,22 @@
             dropdown.classList.toggle('show');
         }
         
+        function updateThemeToggle(theme) {
+            const themeToggle = document.getElementById('theme-toggle');
+            if (!themeToggle) return;
+
+            if (theme === 'dark') {
+                themeToggle.classList.add('active');
+            } else {
+                themeToggle.classList.remove('active');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.classList.contains('dark-mode');
+            setTheme(isDark ? 'light' : 'dark');
+        }
+
         function setTheme(theme) {
             if (theme === 'dark') {
                 document.body.classList.add('dark-mode');
@@ -1353,12 +1491,8 @@
                 document.body.classList.remove('dark-mode');
             }
             localStorage.setItem('reader-theme', theme);
-            
-            // Update active button
-            document.querySelectorAll('.settings-option[data-theme]').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
+
+            updateThemeToggle(theme);
         }
         
         // Close settings when clicking outside
@@ -1400,13 +1534,9 @@
             
             // Apply saved theme
             if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-                document.querySelectorAll('.settings-option[data-theme]').forEach(btn => {
-                    btn.classList.remove('active');
-                    if (btn.getAttribute('data-theme') === 'dark') {
-                        btn.classList.add('active');
-                    }
-                });
+                setTheme('dark');
+            } else {
+                setTheme('light');
             }
             
             if (savedFont) {
