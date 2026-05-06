@@ -157,7 +157,7 @@
                     </label>
                     <label class="ai-radio-option" for="ai-mode-remote">
                         <input id="ai-mode-remote" type="radio" name="ai-mode" value="remote" onchange="saveAISettings()">
-                        <span>Remote</span>
+                        <span>Cloud</span>
                     </label>
                 </div>
             </div>
@@ -257,7 +257,7 @@
             let mode = savedMode;
             if (!mode) {
                 const legacyProvider = localStorage.getItem('ai-provider');
-                mode = legacyProvider === 'deepseek' ? 'remote' : 'local';
+                mode = legacyProvider === 'deepseek' || legacyProvider === 'ollama_cloud' ? 'remote' : 'local';
             }
 
             const selectedMode = mode || 'local';
@@ -270,7 +270,7 @@
         function saveAISettings() {
             const selected = document.querySelector('input[name="ai-mode"]:checked');
             const mode = selected ? selected.value : 'local';
-            const provider = mode === 'remote' ? 'deepseek' : 'ollama';
+            const provider = mode === 'remote' ? 'ollama_cloud' : 'ollama';
 
             localStorage.setItem('ai-mode', mode);
             localStorage.setItem('ai-provider', provider);

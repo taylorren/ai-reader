@@ -515,12 +515,12 @@
 
             // Fallback/migration from old key.
             const provider = mode
-                ? (mode === 'remote' ? 'deepseek' : 'ollama')
+                ? (mode === 'remote' ? 'ollama_cloud' : 'ollama')
                 : (localStorage.getItem('ai-provider') || 'ollama');
 
             return {
                 provider: provider,
-                mode: mode || (provider === 'deepseek' ? 'remote' : 'local')
+                mode: mode || (provider === 'ollama_cloud' || provider === 'deepseek' ? 'remote' : 'local')
             };
         }
 
@@ -972,7 +972,7 @@
             const aiSettings = getAISettings();
             const providerLabel = aiSettings.provider === 'ollama'
                 ? 'Local'
-                : 'Remote';
+                : 'Cloud';
             document.getElementById('panel-analysis-content').innerHTML = 
                 `<div class="loading">正在分析中... (${providerLabel})</div>`;
             

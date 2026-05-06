@@ -29,7 +29,7 @@ def load_env():
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
                     os.environ[key.strip()] = value.strip()
-        print(f"✓ Loaded API configuration: {os.getenv('OPENAI_BASE_URL', 'Not set')}")
+        print(f"✓ Loaded Ollama endpoint: {os.getenv('OLLAMA_BASE_URL', 'Not set')}")
     else:
         print("⚠ Warning: .env file not found. AI features will not work.")
 
@@ -67,7 +67,7 @@ class AIRequest(BaseModel):
     analysis_type: str  # 'fact_check' or 'discussion'
     selected_text: str
     context: str = ""
-    provider: str = "deepseek"  # 'deepseek' or 'ollama'
+    provider: str = "ollama_cloud"  # 'ollama' or 'ollama_cloud'
 
 # Where are the book folders located?
 BOOKS_DIR = "books"
@@ -248,10 +248,10 @@ async def analyze_text(req: AIRequest):
     """Perform AI analysis (fact-check or discussion) without saving."""
     service = get_ai_service()
     if not service:
-        raise HTTPException(status_code=500, detail="AI service not configured. Please set OPENAI_API_KEY.")
+        raise HTTPException(status_code=500, detail="AI service not configured. Please check Ollama settings.")
 
-    provider = (req.provider or "deepseek").lower()
-    if provider not in ("deepseek", "ollama"):
+    provider = (req.provider or "ollama_cloud").lower()
+    if provider not in ("ollama", "ollama_cloud"):
         raise HTTPException(status_code=400, detail="Invalid AI provider")
     
     # Call appropriate AI function

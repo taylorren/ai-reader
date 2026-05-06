@@ -12,7 +12,7 @@ A lightweight, self-hosted EPUB reader with integrated AI analysis capabilities.
 - 🎯 **Clickable Covers** - Click book covers to start reading instantly
 
 ### AI & Annotations
-- 🤖 **AI Analysis** - Right-click on text for fact-checking or discussion (DeepSeek)
+- 🤖 **AI Analysis** - Right-click on text for fact-checking or discussion (Ollama local or Cloud)
 - � ***Personal Comments** - Add your own notes without AI (no API cost)
 - 💾 **Manual Save** - Choose what to save to avoid clutter
 - ✨ **Color-Coded Highlights** - Yellow (fact check), Blue (discussion), Green (comments)
@@ -30,21 +30,22 @@ A lightweight, self-hosted EPUB reader with integrated AI analysis capabilities.
 
 ## Quick Start
 
-### 1. Configure API Key
+### 1. Configure Ollama
 
 Edit `.env` file:
 ```bash
-OPENAI_API_KEY=your_deepseek_key
-OPENAI_BASE_URL=https://api.deepseek.com
-OPENAI_MODEL=deepseek-chat
-
-# Ollama (local)
+# Ollama
 OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_API_KEY=ollama
 OLLAMA_MODEL=llama3
+OLLAMA_CLOUD_MODEL=gpt-oss:120b-cloud
 ```
 
-Get your key from: https://platform.deepseek.com/api_keys
+Then sign your Ollama daemon into Ollama Cloud once:
+
+```bash
+ollama signin
+```
 
 ### 2. Add Books
 
@@ -152,12 +153,12 @@ copy reader_data.db backups\reader_data_backup.db
 - `check_database.py` - View raw database contents (advanced)
 - `backup.bat` - Quick database backup
 
-## Why DeepSeek?
+## Why Ollama Cloud?
 
-- ✅ Cost-effective (¥1/M tokens input, ¥2/M output)
-- ✅ Excellent Chinese language support
-- ✅ Fast response in China
-- ✅ OpenAI-compatible API
+- ✅ Uses the same Ollama workflow as local models
+- ✅ Lets you use larger hosted models without a local GPU
+- ✅ Keeps one provider for both local and cloud modes
+- ✅ Works through Ollama's OpenAI-compatible endpoint
 
 ## Troubleshooting
 
