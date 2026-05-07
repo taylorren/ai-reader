@@ -1,3 +1,5 @@
+"""FastAPI server for the EPUB reader and AI-assisted annotation features."""
+
 import os
 import pickle
 from functools import lru_cache
@@ -6,24 +8,32 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import shutil
 import subprocess
 
-from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
+# Keep legacy pickle symbols available in this module namespace.
+import reader3 as reader3_models
+from reader3 import Book
 from database import Database, Highlight, AIAnalysis
 from ai_service import AIService
+
+BookMetadata = reader3_models.BookMetadata
+ChapterContent = reader3_models.ChapterContent
+TOCEntry = reader3_models.TOCEntry
+
+BASE_DIR = Path(__file__).resolve().parent
 
 # Load .env file at startup
 def load_env():
     """Load environment variables from .env file."""
-    env_path = Path(".env")
+    env_path = BASE_DIR / ".env"
     if env_path.exists():
         print("Loading .env file...")
-        with open(env_path) as f:
+        with open(env_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -36,11 +46,12 @@ def load_env():
 load_env()
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 # Initialize database and AI service
 db = Database()
-ai_service = None  # Will be initialized on first use
+_service_state = {"ai_service": None}  # Lazy init without global statements
 
 # Runtime settings for temporary overrides
 _runtime_settings = {
@@ -49,17 +60,18 @@ _runtime_settings = {
 
 def get_ai_service():
     """Lazy initialization of AI service."""
-    global ai_service
-    if ai_service is None:
+    if _service_state["ai_service"] is None:
         try:
-            ai_service = AIService()
+            _service_state["ai_service"] = AIService()
         except ValueError as e:
             print(f"Warning: {e}")
-    return ai_service
+    return _service_state["ai_service"]
 
 
 # Request models
 class HighlightRequest(BaseModel):
+    """Payload for creating a highlight."""
+
     book_id: str
     chapter_index: int
     selected_text: str
@@ -68,6 +80,8 @@ class HighlightRequest(BaseModel):
 
 
 class AIRequest(BaseModel):
+    """Payload for AI analysis requests."""
+
     highlight_id: int
     analysis_type: str  # 'fact_check' or 'discussion'
     selected_text: str
@@ -76,10 +90,12 @@ class AIRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
-    provider_override: Optional[str] = None  # 'ollama' or 'ollama_cloud' to override, None to reset to default
+    """Payload for runtime settings updates."""
+
+    provider_override: Optional[str] = None
 
 # Where are the book folders located?
-BOOKS_DIR = "books"
+BOOKS_DIR = str(BASE_DIR / "books")
 
 @lru_cache(maxsize=10)
 def load_book_cached(folder_name: str) -> Optional[Book]:
@@ -95,7 +111,16 @@ def load_book_cached(folder_name: str) -> Optional[Book]:
         with open(file_path, "rb") as f:
             book = pickle.load(f)
         return book
-    except Exception as e:
+    except (
+        OSError,
+        pickle.UnpicklingError,
+        EOFError,
+        AttributeError,
+        ImportError,
+        ModuleNotFoundError,
+        TypeError,
+        ValueError,
+    ) as e:
         print(f"Error loading book {folder_name}: {e}")
         return None
 
@@ -121,7 +146,7 @@ async def library_view(request: Request):
                 if item.endswith(tuple(f"_{i}" for i in range(1, 100))):
                     suffix_num = item.split("_")[-1]
                     folder_suffix = f"Copy {suffix_num}"
-                
+
                 # Get reading progress
                 progress_data = db.get_progress(item)
                 total_chapters = len(book.spine)
@@ -130,7 +155,7 @@ async def library_view(request: Request):
                 if progress_data:
                     current_chapter = progress_data['chapter_index']
                     progress_percent = int((current_chapter + 1) / total_chapters * 100)
-                
+
                 books.append({
                     "id": item,
                     "title": book.metadata.title,
@@ -173,25 +198,28 @@ async def serve_image(book_id: str, image_name: str):
 
 @app.get("/read/{book_id}/{chapter_ref:path}", response_class=HTMLResponse)
 async def read_chapter(request: Request, book_id: str, chapter_ref: str):
-    """The main reader interface. Accepts either chapter index (0, 1, 2) or filename (part0008.html)."""
-    
+    """Render chapter by numeric index or by chapter filename."""
+
     # Try to parse as integer first
     try:
         chapter_index = int(chapter_ref)
-    except ValueError:
+    except ValueError as exc:
         # It's a filename, need to find the corresponding chapter index
         book = load_book_cached(book_id)
         chapter_index = None
-        
+
         # Search through spine to find matching filename
         for idx, item in enumerate(book.spine):
             if item.href == chapter_ref or item.href.endswith(chapter_ref):
                 chapter_index = idx
                 break
-        
+
         if chapter_index is None:
-            raise HTTPException(status_code=404, detail=f"Chapter file '{chapter_ref}' not found")
-    
+            raise HTTPException(
+                status_code=404,
+                detail=f"Chapter file '{chapter_ref}' not found",
+            ) from exc
+
     # Now proceed with the chapter_index
     book = load_book_cached(book_id)
     if not book:
@@ -202,6 +230,8 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
 
     current_chapter = book.spine[chapter_index]
 
+    spine_map = {chapter.href: chapter.order for chapter in book.spine}
+
     # Calculate Prev/Next links
     prev_idx = chapter_index - 1 if chapter_index > 0 else None
     next_idx = chapter_index + 1 if chapter_index < len(book.spine) - 1 else None
@@ -211,13 +241,14 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
     saved_scroll = 0
     if progress_data and progress_data['chapter_index'] == chapter_index:
         saved_scroll = progress_data['scroll_position']
-    
+
     return templates.TemplateResponse("reader.html", {
         "request": request,
         "book": book,
         "current_chapter": current_chapter,
         "chapter_index": chapter_index,
         "book_id": book_id,
+        "spine_map": spine_map,
         "prev_idx": prev_idx,
         "next_idx": next_idx,
         "saved_scroll": saved_scroll
@@ -233,7 +264,7 @@ async def save_reading_progress(book_id: str, chapter_index: int, scroll_positio
         db.save_progress(book_id, chapter_index, scroll_position)
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/highlight")
@@ -247,7 +278,7 @@ async def create_highlight(req: HighlightRequest):
         context_after=req.context_after,
         created_at=datetime.now().isoformat()
     )
-    
+
     highlight_id = db.save_highlight(highlight)
     return {"highlight_id": highlight_id, "status": "success"}
 
@@ -257,14 +288,17 @@ async def analyze_text(req: AIRequest):
     """Perform AI analysis (fact-check or discussion) without saving."""
     service = get_ai_service()
     if not service:
-        raise HTTPException(status_code=500, detail="AI service not configured. Please check Ollama settings.")
+        raise HTTPException(
+            status_code=500,
+            detail="AI service not configured. Please check Ollama settings.",
+        )
 
     # Use provider override if set, otherwise use request provider
     provider = _runtime_settings["provider_override"] or req.provider or "ollama_cloud"
     provider = provider.lower()
     if provider not in ("ollama", "ollama_cloud"):
         raise HTTPException(status_code=400, detail="Invalid AI provider")
-    
+
     # Call appropriate AI function
     if req.analysis_type == "fact_check":
         response = await service.fact_check(
@@ -280,7 +314,7 @@ async def analyze_text(req: AIRequest):
         )
     else:
         raise HTTPException(status_code=400, detail="Invalid analysis type")
-    
+
     return {
         "response": response,
         "provider_used": provider,
@@ -289,6 +323,8 @@ async def analyze_text(req: AIRequest):
 
 
 class SaveAnalysisRequest(BaseModel):
+    """Payload for saving an analysis or comment."""
+
     highlight_id: int
     analysis_type: str
     prompt: str
@@ -305,9 +341,9 @@ async def save_analysis(req: SaveAnalysisRequest):
         response=req.response,
         created_at=datetime.now().isoformat()
     )
-    
+
     analysis_id = db.save_analysis(analysis)
-    
+
     return {
         "analysis_id": analysis_id,
         "status": "success"
@@ -318,11 +354,11 @@ async def save_analysis(req: SaveAnalysisRequest):
 async def get_highlights(book_id: str, chapter_index: int):
     """Get all highlights for a chapter."""
     highlights = db.get_highlights_for_chapter(book_id, chapter_index)
-    
+
     # Attach analyses to each highlight
     for highlight in highlights:
         highlight["analyses"] = db.get_analyses_for_highlight(highlight["id"])
-    
+
     return {"highlights": highlights}
 
 
@@ -332,7 +368,7 @@ async def view_highlights(book_id: str, request: Request):
     try:
         # Get all highlights for this book
         all_highlights = db.get_all_highlights_for_book(book_id)
-        
+
         # Attach analyses and flatten
         highlights_with_analyses = []
         for highlight in all_highlights:
@@ -353,21 +389,25 @@ async def view_highlights(book_id: str, request: Request):
                     "response": None,
                     "analysis_created_at": None
                 })
-        
+
         # Sort by creation date (newest first)
         highlights_with_analyses.sort(key=lambda x: x["created_at"], reverse=True)
-        
+
         # Calculate stats
         stats = {
             "total": len(highlights_with_analyses),
-            "fact_check": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "fact_check"),
-            "discussion": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "discussion"),
+            "fact_check": sum(
+                1 for h in highlights_with_analyses if h["analysis_type"] == "fact_check"
+            ),
+            "discussion": sum(
+                1 for h in highlights_with_analyses if h["analysis_type"] == "discussion"
+            ),
             "comment": sum(1 for h in highlights_with_analyses if h["analysis_type"] == "comment")
         }
-        
+
         # Get book title
         book_title = book_id.replace("_data", "").replace("_", " ")
-        
+
         return templates.TemplateResponse("highlights.html", {
             "request": request,
             "book_id": book_id,
@@ -375,9 +415,9 @@ async def view_highlights(book_id: str, request: Request):
             "highlights": highlights_with_analyses,
             "stats": stats
         })
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.put("/api/ai/update/{analysis_id}")
@@ -387,7 +427,7 @@ async def update_analysis(analysis_id: int, req: dict):
         db.update_analysis(analysis_id, req.get("response", ""))
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.delete("/api/ai/delete/{analysis_id}")
@@ -397,7 +437,7 @@ async def delete_analysis(analysis_id: int):
         db.delete_analysis(analysis_id)
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.delete("/delete/{book_id}")
@@ -407,25 +447,25 @@ async def delete_book(book_id: str):
         # Security check: ensure book_id doesn't contain path traversal
         if ".." in book_id or "/" in book_id or "\\" in book_id:
             raise HTTPException(status_code=400, detail="Invalid book ID")
-        
+
         book_path = os.path.join(BOOKS_DIR, book_id)
-        
+
         if not os.path.exists(book_path):
             raise HTTPException(status_code=404, detail="Book not found")
-        
+
         # Delete the book folder
         shutil.rmtree(book_path)
-        
+
         # Clear cache for this book
         load_book_cached.cache_clear()
-        
+
         return {
-            "message": f"Book deleted. Your highlights and analyses are preserved in the database.",
+            "message": "Book deleted. Your highlights and analyses are preserved in the database.",
             "status": "success"
         }
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/upload")
@@ -434,28 +474,30 @@ async def upload_book(file: UploadFile = File(...)):
     # Validate file type
     if not file.filename.endswith('.epub'):
         raise HTTPException(status_code=400, detail="Only EPUB files are supported")
-    
+
     try:
         # Create temp directory if it doesn't exist
-        temp_dir = "temp"
+        temp_dir = str(BASE_DIR / "temp")
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         # Save uploaded file
         temp_file_path = os.path.join(temp_dir, file.filename)
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
+
         # Process the EPUB file using reader3.py with uv
         result = subprocess.run(
-            ["uv", "run", "reader3.py", temp_file_path],
+            ["uv", "run", str(BASE_DIR / "reader3.py"), temp_file_path],
+            check=False,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
+            cwd=str(BASE_DIR)
         )
-        
+
         # Clean up temp file
         os.remove(temp_file_path)
-        
+
         if result.returncode == 0:
             # Extract book title from output
             book_name = os.path.splitext(file.filename)[0]
@@ -465,14 +507,19 @@ async def upload_book(file: UploadFile = File(...)):
             }
         else:
             raise HTTPException(
-                status_code=500, 
+                status_code=500,
                 detail=f"Failed to process EPUB: {result.stderr}"
             )
-    
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=500, detail="Processing timeout (file too large?)")
+
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Processing timeout (file too large?)",
+        ) from exc
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Settings endpoints for runtime configuration
@@ -493,15 +540,18 @@ async def update_settings(settings: SettingsUpdate):
     if settings.provider_override is not None:
         provider = settings.provider_override.lower()
         if provider not in ("ollama", "ollama_cloud"):
-            raise HTTPException(status_code=400, detail="Invalid provider. Must be 'ollama' or 'ollama_cloud'")
-        
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid provider. Must be 'ollama' or 'ollama_cloud'",
+            )
+
         _runtime_settings["provider_override"] = provider
         print(f"✓ Provider override set to: {provider}")
     else:
         # Reset to default
         _runtime_settings["provider_override"] = None
-        print(f"✓ Provider override cleared, using default")
-    
+        print("✓ Provider override cleared, using default")
+
     return {
         "provider_override": _runtime_settings["provider_override"],
         "status": "success"
@@ -510,7 +560,11 @@ async def update_settings(settings: SettingsUpdate):
 
 if __name__ == "__main__":
     import uvicorn
+
     host = os.getenv("READER_HOST", "0.0.0.0")
     port = int(os.getenv("READER_PORT", "8123"))
-    print(f"Starting server at http://{host}:{port} (accessible externally if firewall/NAT allow)")
+    print(
+        f"Starting server at http://{host}:{port} "
+        "(accessible externally if firewall/NAT allow)"
+    )
     uvicorn.run(app, host=host, port=port)
