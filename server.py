@@ -27,6 +27,16 @@ TOCEntry = reader3_models.TOCEntry
 
 BASE_DIR = Path(__file__).resolve().parent
 
+
+def get_asset_version(*relative_paths: str) -> int:
+    """Return a stable cache-busting token based on asset modification times."""
+    mtimes = []
+    for relative_path in relative_paths:
+        asset_path = BASE_DIR / relative_path
+        if asset_path.exists():
+            mtimes.append(asset_path.stat().st_mtime_ns)
+    return max(mtimes, default=0)
+
 # Load .env file at startup
 def load_env():
     """Load environment variables from .env file."""
@@ -242,6 +252,8 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
     if progress_data and progress_data['chapter_index'] == chapter_index:
         saved_scroll = progress_data['scroll_position']
 
+    reader_asset_version = get_asset_version("static/css/reader.css", "static/js/reader.js")
+
     return templates.TemplateResponse("reader.html", {
         "request": request,
         "book": book,
@@ -251,7 +263,8 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         "spine_map": spine_map,
         "prev_idx": prev_idx,
         "next_idx": next_idx,
-        "saved_scroll": saved_scroll
+        "saved_scroll": saved_scroll,
+        "asset_version": reader_asset_version,
     })
 
 
