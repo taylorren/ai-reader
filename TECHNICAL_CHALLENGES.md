@@ -123,6 +123,41 @@ This document outlines the key technical challenges we encountered and solved wh
 
 **Code**: `templates/reader.html` - `findTextRange()` function
 
+## 11. Mixed English/Chinese Library Sorting
+
+**Challenge**: The library needed title-based navigation that felt natural for both English and Chinese books. A plain Unicode sort would scatter Chinese titles in a way that was hard to browse.
+
+**Solution**:
+- Normalized titles before sorting by stripping leading symbols and common English articles (`the`, `a`, `an`)
+- Added pinyin transliteration for Chinese titles using `pypinyin`
+- Derived a stable title-group key from the transliterated form so English and Chinese books share the same alphabet filter model
+- Kept a fallback path when transliteration is unavailable so the library still renders safely
+
+**Code**: `server.py` - `normalize_title_for_sort()`, `transliterate_for_sort()`, `title_group_key()`
+
+## 12. Upload Processing Without Runtime `uv`
+
+**Challenge**: Uploading books through the web UI failed in environments where the server was running correctly but the `uv` executable was not available in the request-time PATH.
+
+**Solution**:
+- Replaced the upload subprocess call from `uv run reader3.py ...` to `sys.executable reader3.py ...`
+- Ensured uploaded books are processed by the exact same Python environment that is already running the FastAPI app
+- Removed a brittle runtime dependency while keeping the normal CLI workflow intact
+
+**Code**: `server.py` - `/upload` endpoint
+
+## 13. Flat Library Navigation With Alphabet Filter
+
+**Challenge**: Sectioned alphabetical grouping made the landing page feel heavier than necessary, but the library still needed faster navigation as the number of books grew.
+
+**Solution**:
+- Flattened the card grid back to a single list for simpler scanning
+- Turned the alphabet bar into an active filter rather than a jump list
+- Combined title-initial filtering with existing search and unfinished-only filtering in one client-side pass
+- Moved less-frequently used controls into a collapsible settings panel to reduce clutter at the top of the page
+
+**Code**: `templates/library.html` - alphabet filter UI and `filterBooks()`
+
 ---
 
 ## Key Technologies Used

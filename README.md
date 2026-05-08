@@ -25,7 +25,11 @@ A lightweight, self-hosted EPUB reader with integrated AI analysis capabilities.
 - 📤 **Export to Markdown** - Export highlights with AI context warnings
 - 🌐 **Web Upload** - Upload EPUB files via click or drag & drop
 - 🖼️ **Cover Images** - Automatic cover extraction and display
-- 🔍 **Search** - Find books by title or author
+- 🔍 **Search & Filters** - Search by title/author, filter by title initial, or show unfinished books only
+- ✅ **Completion Tracking** - Mark books complete and keep completed titles visually distinct
+- 🔤 **Mixed-Language Sorting** - English titles sort alphabetically, Chinese titles sort by pinyin initials
+- 📏 **Estimated Word Count** - Each book card shows a quick reading-length estimate
+- ⚙️ **Compact Library Settings** - AI provider and view controls are tucked into a collapsible settings panel
 - 🗂️ **Organized Storage** - All books in `books/` directory, data in SQLite
 
 ## Quick Start
@@ -54,6 +58,8 @@ ollama signin
 2. Open http://127.0.0.1:8123
 3. Click the "+" card OR drag & drop EPUB file
 4. Wait for automatic processing
+
+The upload path processes EPUBs with the same Python interpreter running the server, so adding books does not depend on a separate `uv` executable being available at request time.
 
 **Option B: Command Line**
 ```bash
@@ -106,6 +112,13 @@ READER_HOST=0.0.0.0 READER_PORT=8123 uv run server.py
 - Export to markdown for AI processing
 - Context length warnings for large exports
 - Jump directly to any chapter
+
+### Library Browsing
+- Use the alphabet bar under the search field to filter the grid by title initial
+- The title filter uses pinyin initials for Chinese books, so `三体` appears under `S`
+- Open `Settings` to switch AI Provider or toggle between all books and unfinished books
+- Use the ⋮ menu on a book card to mark it complete or incomplete
+- Completed books keep a green progress indicator and a dimmed cover treatment
 
 ### Keyboard Shortcuts
 - **← →** - Navigate between chapters
@@ -170,6 +183,9 @@ copy reader_data.db backups\reader_data_backup.db
 1. Check browser console (F12) for errors
 2. Verify data exists: `uv run check_database.py`
 3. Hard refresh (Ctrl+Shift+R)
+
+### Upload Says A Tool Is Missing
+Recent versions process uploads with the server's active Python interpreter. If uploads still fail after pulling changes, restart the server or systemd service so it picks up the new upload path.
 
 ### Server Won't Start
 1. Check if port 8123 is available
