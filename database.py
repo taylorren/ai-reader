@@ -255,14 +255,15 @@ class Database:
 
         cursor.execute("""
             INSERT INTO reading_progress (
-                book_id, chapter_index, scroll_position, last_read_at
+                book_id, chapter_index, scroll_position, is_completed, last_read_at
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(book_id) DO UPDATE SET
                 chapter_index = excluded.chapter_index,
                 scroll_position = excluded.scroll_position,
+                is_completed = excluded.is_completed,
                 last_read_at = excluded.last_read_at
-        """, (book_id, chapter_index, scroll_position, datetime.now().isoformat()))
+        """, (book_id, chapter_index, scroll_position, 0, datetime.now().isoformat()))
 
         conn.commit()
         conn.close()
