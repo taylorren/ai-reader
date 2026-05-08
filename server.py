@@ -4,6 +4,7 @@ import os
 import pickle
 import re
 import sys
+from itertools import groupby
 from functools import lru_cache
 from typing import Optional
 from datetime import datetime
@@ -23,6 +24,11 @@ from reader3 import Book
 from database import Database, Highlight, AIAnalysis
 from ai_service import AIService
 
+try:
+    from pypinyin import lazy_pinyin
+except ImportError:
+    lazy_pinyin = None
+
 BookMetadata = reader3_models.BookMetadata
 ChapterContent = reader3_models.ChapterContent
 TOCEntry = reader3_models.TOCEntry
@@ -31,6 +37,8 @@ BASE_DIR = Path(__file__).resolve().parent
 
 LATIN_WORD_RE = re.compile(r"\b\w+\b", re.UNICODE)
 CJK_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+LEADING_SYMBOL_RE = re.compile(r"^[^0-9A-Za-z\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+")
+LEADING_ARTICLE_RE = re.compile(r"^(the|a|an)\s+", re.IGNORECASE)
 
 
 def get_asset_version(*relative_paths: str) -> int:
@@ -60,6 +68,56 @@ def estimate_book_word_count(book: Book) -> int:
 def format_word_count(word_count: int) -> str:
     """Format a word-count estimate for compact display."""
     return f"{word_count:,} words"
+
+
+def normalize_title_for_sort(title: str) -> str:
+    """Normalize titles for grouping and sort order."""
+    cleaned_title = LEADING_SYMBOL_RE.sub("", (title or "").strip())
+    cleaned_title = LEADING_ARTICLE_RE.sub("", cleaned_title)
+    return cleaned_title or (title or "").strip() or "#"
+
+
+def transliterate_for_sort(text: str) -> str:
+    """Build a Latin sort key for mixed English and Chinese titles."""
+    normalized_title = normalize_title_for_sort(text)
+    if lazy_pinyin:
+        transliterated = "".join(lazy_pinyin(normalized_title))
+        if transliterated:
+            return transliterated.casefold()
+    return normalized_title.casefold()
+
+
+def title_group_key(title: str) -> str:
+    """Return the visible group key for a title."""
+    sort_key = transliterate_for_sort(title)
+    if sort_key:
+        first_char = sort_key[0].upper()
+        if first_char.isalpha():
+            return first_char
+    return "#"
+
+
+def build_grouped_books(books: list[dict]) -> list[dict]:
+    """Build alphabetical section groups for the library page."""
+    sorted_books = sorted(
+        books,
+        key=lambda book: (
+            book["title_group"] == "#",
+            book["title_group"],
+            book["title_sort_key"],
+            book["title"].casefold(),
+        ),
+    )
+
+    grouped_books = []
+    for group_key, items in groupby(sorted_books, key=lambda book: book["title_group"]):
+        grouped_books.append({
+            "key": group_key,
+            "label": group_key,
+            "books": list(items),
+        })
+
+    return grouped_books
 
 # Load .env file at startup
 def load_env():
@@ -196,6 +254,8 @@ async def library_view(request: Request):
                     progress_percent = 100
 
                 estimated_word_count = estimate_book_word_count(book)
+                title_sort_key = transliterate_for_sort(book.metadata.title)
+                title_group = title_group_key(book.metadata.title)
 
                 books.append({
                     "id": item,
@@ -208,9 +268,16 @@ async def library_view(request: Request):
                     "cover": book.cover_image if hasattr(book, 'cover_image') else None,
                     "progress": current_chapter,
                     "progress_percent": progress_percent,
-                    "is_completed": is_completed
+                    "is_completed": is_completed,
+                    "title_sort_key": title_sort_key,
+                    "title_group": title_group,
                 })
-    return templates.TemplateResponse("library.html", {"request": request, "books": books})
+    grouped_books = build_grouped_books(books)
+    books = [book for group in grouped_books for book in group["books"]]
+    return templates.TemplateResponse(
+        "library.html",
+        {"request": request, "books": books, "grouped_books": grouped_books},
+    )
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
 async def redirect_to_last_position(book_id: str):

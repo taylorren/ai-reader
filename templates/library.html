@@ -124,9 +124,20 @@
         .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 1.2em; color: #999; pointer-events: none; }
         .book-card.hidden { display: none; }
         .no-results { text-align: center; padding: 40px; color: #999; font-size: 1.1em; grid-column: 1 / -1; }
+        .library-index { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px 0; }
+        .library-index-link { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 10px; border-radius: 999px; background: white; border: 1px solid #ddd; color: #555; text-decoration: none; font-size: 0.88em; font-weight: 600; cursor: pointer; }
+        .library-index-link:hover { background: #f8f9fa; border-color: #3498db; color: #3498db; }
+        .library-index-link.active { background: #3498db; border-color: #3498db; color: white; }
+        .library-index-link.hidden { display: none; }
 
         /* AI settings */
+        .settings-panel { margin: 0 0 18px 0; }
+        .settings-panel summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; font-size: 0.9em; font-weight: 600; }
+        .settings-panel summary::-webkit-details-marker { display: none; }
+        .settings-panel summary::before { content: '▸'; font-size: 0.85em; transition: transform 0.2s; }
+        .settings-panel[open] summary::before { transform: rotate(90deg); }
         .ai-settings { margin: 0 0 18px 0; padding: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+        .settings-panel .ai-settings { margin: 10px 0 0 0; }
         .ai-settings-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         .ai-settings-row + .ai-settings-row { margin-top: 10px; }
         .ai-settings label { font-size: 0.88em; color: #555; }
@@ -141,9 +152,13 @@
         body.dark-mode .ai-settings { background: #2d2d2d; border-color: #404040; }
         body.dark-mode .ai-settings label { color: #c0c0c0; }
         body.dark-mode .book-word-count { background: #1f3347; color: #90caf9; }
+        body.dark-mode .settings-panel summary { background: #2d2d2d; border-color: #404040; color: #d0d0d0; }
         body.dark-mode .toggle-switch { background: #404040; }
         body.dark-mode .toggle-switch-slider { background: #2d2d2d; }
         body.dark-mode .toggle-label { color: #999; }
+        body.dark-mode .library-index-link { background: #2d2d2d; border-color: #404040; color: #d0d0d0; }
+        body.dark-mode .library-index-link:hover { background: #353535; border-color: #64b5f6; color: #90caf9; }
+        body.dark-mode .library-index-link.active { background: #64b5f6; border-color: #64b5f6; color: #1a1a1a; }
     </style>
 </head>
 <body>
@@ -159,28 +174,40 @@
             <span class="search-icon">🔍</span>
         </div>
 
-        <div class="ai-settings">
-            <div class="ai-settings-row">
-                <label class="settings-label">AI Provider:</label>
-                <div class="provider-toggle" aria-label="AI Provider switch">
-                    <span class="toggle-label">Local AI</span>
-                    <div class="toggle-switch" id="ai-provider-toggle" onclick="toggleAIProviderSetting()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleAIProviderSetting)">
-                        <div class="toggle-switch-slider"></div>
-                    </div>
-                    <span class="toggle-label">Cloud AI</span>
-                </div>
-            </div>
-            <div class="ai-settings-row">
-                <label class="settings-label">View:</label>
-                <div class="provider-toggle" aria-label="Book view switch">
-                    <span class="toggle-label">All books</span>
-                    <div class="toggle-switch" id="view-toggle" onclick="toggleViewFilter()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleViewFilter)">
-                        <div class="toggle-switch-slider"></div>
-                    </div>
-                    <span class="toggle-label">Unfinished</span>
-                </div>
-            </div>
+        {% if grouped_books %}
+        <div class="library-index">
+            <button type="button" class="library-index-link active" data-group="all" onclick="setTitleGroupFilter('all')">All</button>
+            {% for section in grouped_books %}
+            <button type="button" class="library-index-link" data-group="{{ section.key }}" onclick="setTitleGroupFilter('{{ section.key }}')">{{ section.label }}</button>
+            {% endfor %}
         </div>
+        {% endif %}
+
+        <details class="settings-panel">
+            <summary>Settings</summary>
+            <div class="ai-settings">
+                <div class="ai-settings-row">
+                    <label class="settings-label">AI Provider:</label>
+                    <div class="provider-toggle" aria-label="AI Provider switch">
+                        <span class="toggle-label">Local AI</span>
+                        <div class="toggle-switch" id="ai-provider-toggle" onclick="toggleAIProviderSetting()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleAIProviderSetting)">
+                            <div class="toggle-switch-slider"></div>
+                        </div>
+                        <span class="toggle-label">Cloud AI</span>
+                    </div>
+                </div>
+                <div class="ai-settings-row">
+                    <label class="settings-label">View:</label>
+                    <div class="provider-toggle" aria-label="Book view switch">
+                        <span class="toggle-label">All books</span>
+                        <div class="toggle-switch" id="view-toggle" onclick="toggleViewFilter()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleViewFilter)">
+                            <div class="toggle-switch-slider"></div>
+                        </div>
+                        <span class="toggle-label">Unfinished</span>
+                    </div>
+                </div>
+            </div>
+        </details>
 
         <div id="upload-status" class="upload-status">
             <div id="status-message"></div>
@@ -192,7 +219,7 @@
         <div class="book-grid">
             <!-- Existing Books -->
             {% for book in books %}
-            <div class="book-card{% if book.is_completed %} completed{% endif %}" data-book-id="{{ book.id }}" data-completed="{{ 'true' if book.is_completed else 'false' }}">
+            <div class="book-card{% if book.is_completed %} completed{% endif %}" data-book-id="{{ book.id }}" data-completed="{{ 'true' if book.is_completed else 'false' }}" data-group="{{ book.title_group }}">
                 <a href="/read/{{ book.id }}" class="book-cover-link">
                     <div class="book-cover">
                         {% if book.cover %}
@@ -242,6 +269,8 @@
     </div>
 
     <script>
+        let activeTitleGroupFilter = 'all';
+
         // Theme toggle
         function toggleTheme() {
             const body = document.body;
@@ -336,12 +365,20 @@
                 toggleFn();
             }
         }
+
+        function setTitleGroupFilter(group) {
+            activeTitleGroupFilter = group;
+            document.querySelectorAll('.library-index-link[data-group]').forEach(link => {
+                link.classList.toggle('active', link.dataset.group === group);
+            });
+            filterBooks();
+        }
         
         function filterBooks() {
             const searchInput = document.getElementById('search-input');
             const viewToggle = document.getElementById('view-toggle');
             const searchTerm = searchInput.value.toLowerCase();
-            const bookCards = document.querySelectorAll('.book-card:not(.add-book-card)');
+            const bookCards = document.querySelectorAll('.book-card');
             const filterUnfinishedOnly = viewToggle ? viewToggle.classList.contains('active') : false;
             let visibleCount = 0;
 
@@ -349,10 +386,11 @@
                 const title = card.querySelector('.book-title').textContent.toLowerCase();
                 const meta = card.querySelector('.book-meta').textContent.toLowerCase();
                 const isCompleted = card.dataset.completed === 'true';
+                const matchesTitleGroup = activeTitleGroupFilter === 'all' || card.dataset.group === activeTitleGroupFilter;
                 const matchesSearch = title.includes(searchTerm) || meta.includes(searchTerm);
                 const matchesCompletionFilter = !filterUnfinishedOnly || !isCompleted;
 
-                if (matchesSearch && matchesCompletionFilter) {
+                if (matchesSearch && matchesCompletionFilter && matchesTitleGroup) {
                     card.classList.remove('hidden');
                     visibleCount++;
                 } else {
