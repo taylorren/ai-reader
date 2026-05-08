@@ -119,7 +119,7 @@
         
         /* Search Bar */
         .search-container { position: relative; margin: 20px 0 30px 0; }
-        .search-input { width: 100%; padding: 12px 45px 12px 15px; font-size: 1em; border: 2px solid #ddd; border-radius: 8px; transition: border-color 0.2s; }
+        .search-input { width: 100%; box-sizing: border-box; padding: 12px 45px 12px 15px; font-size: 1em; border: 2px solid #ddd; border-radius: 8px; transition: border-color 0.2s; }
         .search-input:focus { outline: none; border-color: #3498db; }
         .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 1.2em; color: #999; pointer-events: none; }
         .book-card.hidden { display: none; }
@@ -127,20 +127,23 @@
 
         /* AI settings */
         .ai-settings { margin: 0 0 18px 0; padding: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
-        .ai-settings-title { font-size: 0.92em; font-weight: 600; color: #333; margin-bottom: 10px; }
         .ai-settings-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .ai-settings-row + .ai-settings-row { margin-top: 10px; }
         .ai-settings label { font-size: 0.88em; color: #555; }
-        .ai-radio-group { display: flex; gap: 16px; align-items: center; }
-        .ai-radio-option { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9em; }
-        .ai-radio-option input[type="radio"] { margin: 0; }
-        .ai-hint { font-size: 0.82em; color: #666; margin-top: 8px; }
+        .settings-label { min-width: 92px; }
+        .provider-toggle { display: flex; align-items: center; gap: 8px; }
+        .toggle-switch { position: relative; width: 50px; height: 24px; background: #ddd; border-radius: 12px; cursor: pointer; transition: background 0.3s; }
+        .toggle-switch.active { background: #3498db; }
+        .toggle-switch-slider { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: left 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .toggle-switch.active .toggle-switch-slider { left: 28px; }
+        .toggle-label { min-width: 54px; text-align: center; font-size: 0.78em; color: #666; }
 
         body.dark-mode .ai-settings { background: #2d2d2d; border-color: #404040; }
-        body.dark-mode .ai-settings-title { color: #e0e0e0; }
         body.dark-mode .ai-settings label { color: #c0c0c0; }
-        body.dark-mode .ai-radio-option { color: #e0e0e0; }
-        body.dark-mode .ai-hint { color: #9a9a9a; }
         body.dark-mode .book-word-count { background: #1f3347; color: #90caf9; }
+        body.dark-mode .toggle-switch { background: #404040; }
+        body.dark-mode .toggle-switch-slider { background: #2d2d2d; }
+        body.dark-mode .toggle-label { color: #999; }
     </style>
 </head>
 <body>
@@ -151,28 +154,32 @@
     <div class="container">
         <h1>我的AI电子书阅读器</h1>
 
-        <!-- Search Bar -->
         <div class="search-container">
             <input type="text" id="search-input" class="search-input" placeholder="Search books by title or author..." onkeyup="filterBooks()">
             <span class="search-icon">🔍</span>
         </div>
 
         <div class="ai-settings">
-            <div class="ai-settings-title">AI Mode</div>
             <div class="ai-settings-row">
-                <label>Use:</label>
-                <div class="ai-radio-group" role="radiogroup" aria-label="AI mode">
-                    <label class="ai-radio-option" for="ai-mode-local">
-                        <input id="ai-mode-local" type="radio" name="ai-mode" value="local" onchange="saveAISettings()">
-                        <span>Local</span>
-                    </label>
-                    <label class="ai-radio-option" for="ai-mode-remote">
-                        <input id="ai-mode-remote" type="radio" name="ai-mode" value="remote" onchange="saveAISettings()">
-                        <span>Cloud</span>
-                    </label>
+                <label class="settings-label">AI Provider:</label>
+                <div class="provider-toggle" aria-label="AI Provider switch">
+                    <span class="toggle-label">Local AI</span>
+                    <div class="toggle-switch" id="ai-provider-toggle" onclick="toggleAIProviderSetting()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleAIProviderSetting)">
+                        <div class="toggle-switch-slider"></div>
+                    </div>
+                    <span class="toggle-label">Cloud AI</span>
                 </div>
             </div>
-            <div class="ai-hint">Model/endpoint details are handled internally from server configuration.</div>
+            <div class="ai-settings-row">
+                <label class="settings-label">View:</label>
+                <div class="provider-toggle" aria-label="Book view switch">
+                    <span class="toggle-label">All books</span>
+                    <div class="toggle-switch" id="view-toggle" onclick="toggleViewFilter()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleViewFilter)">
+                        <div class="toggle-switch-slider"></div>
+                    </div>
+                    <span class="toggle-label">Unfinished</span>
+                </div>
+            </div>
         </div>
 
         <div id="upload-status" class="upload-status">
@@ -278,32 +285,74 @@
             }
 
             const selectedMode = mode || 'local';
-            const target = document.querySelector(`input[name="ai-mode"][value="${selectedMode}"]`);
-            if (target) {
-                target.checked = true;
-            }
+            updateAIProviderToggle(selectedMode);
         }
 
-        function saveAISettings() {
-            const selected = document.querySelector('input[name="ai-mode"]:checked');
-            const mode = selected ? selected.value : 'local';
+        function saveAISettings(mode) {
             const provider = mode === 'remote' ? 'ollama_cloud' : 'ollama';
 
             localStorage.setItem('ai-mode', mode);
             localStorage.setItem('ai-provider', provider);
         }
+
+        function updateAIProviderToggle(mode) {
+            const toggle = document.getElementById('ai-provider-toggle');
+            if (!toggle) {
+                return;
+            }
+
+            const isCloud = mode === 'remote';
+            toggle.classList.toggle('active', isCloud);
+            toggle.setAttribute('aria-checked', String(isCloud));
+        }
+
+        function toggleAIProviderSetting() {
+            const toggle = document.getElementById('ai-provider-toggle');
+            const nextMode = toggle && toggle.classList.contains('active') ? 'local' : 'remote';
+            updateAIProviderToggle(nextMode);
+            saveAISettings(nextMode);
+        }
+
+        function updateViewToggle(showUnfinishedOnly) {
+            const toggle = document.getElementById('view-toggle');
+            if (!toggle) {
+                return;
+            }
+
+            toggle.classList.toggle('active', showUnfinishedOnly);
+            toggle.setAttribute('aria-checked', String(showUnfinishedOnly));
+        }
+
+        function toggleViewFilter() {
+            const toggle = document.getElementById('view-toggle');
+            const showUnfinishedOnly = !(toggle && toggle.classList.contains('active'));
+            updateViewToggle(showUnfinishedOnly);
+            filterBooks();
+        }
+
+        function handleToggleKey(event, toggleFn) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleFn();
+            }
+        }
         
         function filterBooks() {
             const searchInput = document.getElementById('search-input');
+            const viewToggle = document.getElementById('view-toggle');
             const searchTerm = searchInput.value.toLowerCase();
             const bookCards = document.querySelectorAll('.book-card:not(.add-book-card)');
+            const filterUnfinishedOnly = viewToggle ? viewToggle.classList.contains('active') : false;
             let visibleCount = 0;
 
             bookCards.forEach(card => {
                 const title = card.querySelector('.book-title').textContent.toLowerCase();
                 const meta = card.querySelector('.book-meta').textContent.toLowerCase();
-                
-                if (title.includes(searchTerm) || meta.includes(searchTerm)) {
+                const isCompleted = card.dataset.completed === 'true';
+                const matchesSearch = title.includes(searchTerm) || meta.includes(searchTerm);
+                const matchesCompletionFilter = !filterUnfinishedOnly || !isCompleted;
+
+                if (matchesSearch && matchesCompletionFilter) {
                     card.classList.remove('hidden');
                     visibleCount++;
                 } else {
@@ -313,13 +362,20 @@
 
             // Show/hide "no results" message
             let noResultsMsg = document.getElementById('no-results-msg');
-            if (visibleCount === 0 && searchTerm !== '') {
+            if (visibleCount === 0 && (searchTerm !== '' || filterUnfinishedOnly)) {
                 if (!noResultsMsg) {
                     noResultsMsg = document.createElement('div');
                     noResultsMsg.id = 'no-results-msg';
                     noResultsMsg.className = 'no-results';
-                    noResultsMsg.textContent = 'No books found matching "' + searchInput.value + '"';
                     document.querySelector('.book-grid').appendChild(noResultsMsg);
+                }
+
+                if (searchTerm !== '' && filterUnfinishedOnly) {
+                    noResultsMsg.textContent = 'No unfinished books found matching "' + searchInput.value + '"';
+                } else if (searchTerm !== '') {
+                    noResultsMsg.textContent = 'No books found matching "' + searchInput.value + '"';
+                } else {
+                    noResultsMsg.textContent = 'No unfinished books found';
                 }
             } else if (noResultsMsg) {
                 noResultsMsg.remove();

@@ -3,6 +3,7 @@
 import os
 import pickle
 import re
+import sys
 from functools import lru_cache
 from typing import Optional
 from datetime import datetime
@@ -558,9 +559,9 @@ async def upload_book(file: UploadFile = File(...)):
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Process the EPUB file using reader3.py with uv
+        # Process the EPUB file using the current Python interpreter.
         result = subprocess.run(
-            ["uv", "run", str(BASE_DIR / "reader3.py"), temp_file_path],
+            [sys.executable, str(BASE_DIR / "reader3.py"), temp_file_path],
             check=False,
             capture_output=True,
             text=True,
