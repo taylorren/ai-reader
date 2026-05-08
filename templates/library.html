@@ -195,7 +195,7 @@
                     </div>
                     {% if book.progress is not none %}
                     <div class="progress-bar-container">
-                        <div class="progress-bar-fill" style="width: {{ book.progress_percent }}%"></div>
+                        <div class="progress-bar-fill" data-progress-percent="{{ book.progress_percent }}"></div>
                     </div>
                     <div class="progress-text">{{ book.progress_percent }}% complete</div>
                     {% endif %}
@@ -246,6 +246,11 @@
                 document.body.classList.add('dark-mode');
                 document.getElementById('theme-icon').textContent = '☀️';
             }
+
+            document.querySelectorAll('.progress-bar-fill[data-progress-percent]').forEach(function(bar) {
+                const percent = bar.dataset.progressPercent || '0';
+                bar.style.width = `${percent}%`;
+            });
 
             loadAISettings();
         });

@@ -56,6 +56,7 @@
              data-book-id="{{ book_id }}"
              data-chapter-index="{{ chapter_index }}"
              data-saved-scroll="{{ saved_scroll }}"
+               data-target-highlight-id="{{ target_highlight_id }}"
              data-spine-map='{{ spine_map | tojson }}'
              style="display:none;"></div>
         <div class="content-container">
@@ -207,6 +208,9 @@
             <button class="btn btn-primary" id="save-btn" onclick="saveAnalysis()" disabled>
                 保存到数据库
             </button>
+            <button class="btn btn-secondary" id="delete-highlight-btn" onclick="deleteCurrentHighlight()" style="display: none; background: #f44336; color: white;">
+                删除高亮
+            </button>
             <button class="btn btn-secondary" onclick="closePanel()">
                 关闭
             </button>
@@ -219,8 +223,8 @@
             <button class="btn btn-primary" id="update-comment-btn" onclick="updateComment()" style="display: none;">
                 更新笔记
             </button>
-            <button class="btn btn-secondary" id="delete-comment-btn" onclick="deleteComment()" style="display: none; background: #f44336; color: white;">
-                删除
+            <button class="btn btn-secondary" id="delete-comment-btn" onclick="deleteCurrentHighlight()" style="display: none; background: #f44336; color: white;">
+                删除高亮
             </button>
             <button class="btn btn-secondary" onclick="closePanel()">
                 取消

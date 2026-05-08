@@ -204,7 +204,7 @@
                 {% endif %}
                 
                 <div class="action-links">
-                    <a href="/read/{{ book_id }}/{{ item.chapter_index }}" class="action-link">→ Go to chapter</a>
+                    <a href="/read/{{ book_id }}/{{ item.chapter_index }}?highlight_id={{ item.id }}" class="action-link">→ Go to chapter</a>
                 </div>
             </div>
             {% endfor %}
@@ -255,6 +255,14 @@
             breaks: true,
             gfm: true
         });
+
+        function normalizeSavedAnalysisContent(text) {
+            if (!text) {
+                return '';
+            }
+
+            return text.replace(/^(Using:\s*(?:🏠 Local|☁️ Cloud))(?=\S)/m, '$1\n\n');
+        }
         
         // Render markdown for AI responses (not comments)
         document.addEventListener('DOMContentLoaded', function() {
@@ -262,7 +270,7 @@
                 const type = element.getAttribute('data-type');
                 // Only render markdown for AI responses (fact_check, discussion)
                 if (type === 'fact_check' || type === 'discussion') {
-                    const text = element.textContent;
+                    const text = normalizeSavedAnalysisContent(element.textContent);
                     element.innerHTML = marked.parse(text);
                 }
             });

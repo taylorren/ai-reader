@@ -252,6 +252,8 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
     if progress_data and progress_data['chapter_index'] == chapter_index:
         saved_scroll = progress_data['scroll_position']
 
+    target_highlight_id = request.query_params.get("highlight_id", "")
+
     reader_asset_version = get_asset_version("static/css/reader.css", "static/js/reader.js")
 
     return templates.TemplateResponse("reader.html", {
@@ -264,6 +266,7 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         "prev_idx": prev_idx,
         "next_idx": next_idx,
         "saved_scroll": saved_scroll,
+        "target_highlight_id": target_highlight_id,
         "asset_version": reader_asset_version,
     })
 
@@ -294,6 +297,16 @@ async def create_highlight(req: HighlightRequest):
 
     highlight_id = db.save_highlight(highlight)
     return {"highlight_id": highlight_id, "status": "success"}
+
+
+@app.delete("/api/highlight/{highlight_id}")
+async def delete_highlight(highlight_id: int):
+    """Delete a highlight and any analyses attached to it."""
+    try:
+        db.delete_highlight(highlight_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/ai/analyze")

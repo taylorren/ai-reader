@@ -26,14 +26,24 @@
         const BOOK_ID = (readerDataEl && readerDataEl.dataset.bookId) || '';
         const CHAPTER_INDEX = Number((readerDataEl && readerDataEl.dataset.chapterIndex) || 0);
         const SAVED_SCROLL = Number((readerDataEl && readerDataEl.dataset.savedScroll) || 0);
+        const TARGET_HIGHLIGHT_ID = (readerDataEl && readerDataEl.dataset.targetHighlightId) || '';
         let selectedText = "";
         let selectedContext = "";
         let currentHighlightId = null;
         let currentAnalysisId = null;
         let currentAnalysisType = "";
+        let currentRawAnalysisResponse = "";
         let savedHighlights = []; // Store saved highlights for this chapter
         let serverProviderOverride = null; // Server-side override from /api/settings
         let serverDefaultProvider = 'ollama_cloud'; // Server's default provider
+
+        function normalizeSavedAnalysisContent(text) {
+            if (!text) {
+                return '';
+            }
+
+            return text.replace(/^(Using:\s*(?:🏠 Local|☁️ Cloud))(?=\S)/m, '$1\n\n');
+        }
 
         function getAISettings() {
             const mode = localStorage.getItem('ai-mode');
@@ -145,9 +155,22 @@
                 
                 // Apply highlights to the content
                 applyHighlights();
+
+                if (TARGET_HIGHLIGHT_ID) {
+                    scrollToTargetHighlight();
+                }
             } catch (error) {
                 console.error('Error loading highlights:', error);
             }
+        }
+
+        function scrollToTargetHighlight() {
+            const target = document.querySelector(`[data-highlight-id="${TARGET_HIGHLIGHT_ID}"]`);
+            if (!target) {
+                return;
+            }
+
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         // Apply highlights using Range-based approach (industry standard)
@@ -346,6 +369,11 @@
         // Show saved analysis when clicking on a highlight
         function showSavedAnalysis(highlight) {
             openPanel();
+            currentHighlightId = highlight.id;
+            currentAnalysisId = highlight.analyses && highlight.analyses.length > 0
+                ? highlight.analyses[0].id
+                : null;
+            selectedText = highlight.selected_text;
             
             // Update panel content
             document.getElementById('panel-selected-text').textContent = highlight.selected_text;
@@ -368,11 +396,7 @@
                     document.getElementById('update-comment-btn').style.display = 'inline-block';
                     document.getElementById('delete-comment-btn').style.display = 'inline-block';
                     
-                    // Store IDs for update/delete
-                    currentHighlightId = highlight.id;
-                    currentAnalysisId = analysis.id;
                     currentAnalysisType = 'comment';
-                    selectedText = highlight.selected_text;
                     
                 } else {
                     // Show AI analysis (fact_check or discussion)
@@ -382,12 +406,15 @@
                     document.getElementById('panel-analysis-type').textContent = 
                         analysis.analysis_type === 'fact_check' ? '解释说明' : '深入讨论';
                     // Render markdown for AI responses
-                    document.getElementById('panel-analysis-content').innerHTML = marked.parse(analysis.response);
+                    document.getElementById('panel-analysis-content').innerHTML = marked.parse(
+                        normalizeSavedAnalysisContent(analysis.response)
+                    );
                     
                     // Hide save button and show saved indicator
                     document.getElementById('panel-actions').style.display = 'flex';
                     document.getElementById('comment-actions').style.display = 'none';
                     document.getElementById('save-btn').style.display = 'none';
+                    document.getElementById('delete-highlight-btn').style.display = 'inline-block';
                     document.getElementById('saved-indicator').classList.add('show');
                 }
             } else {
@@ -398,6 +425,8 @@
                 document.getElementById('panel-actions').style.display = 'flex';
                 document.getElementById('comment-actions').style.display = 'none';
                 document.getElementById('save-btn').style.display = 'none';
+                document.getElementById('delete-highlight-btn').style.display = 'inline-block';
+                document.getElementById('saved-indicator').classList.add('show');
             }
         }
 
@@ -408,7 +437,7 @@
             
             // Restore scroll position
             const savedScroll = SAVED_SCROLL;
-            if (savedScroll > 0) {
+            if (!TARGET_HIGHLIGHT_ID && savedScroll > 0) {
                 // Try multiple times to ensure content is loaded
                 const mainElement = document.getElementById('main');
                 let attempts = 0;
@@ -541,6 +570,7 @@
             // Reset IDs
             currentHighlightId = null;
             currentAnalysisId = null;
+            currentRawAnalysisResponse = '';
             
             // Hide saved indicator
             document.getElementById('saved-indicator').classList.remove('show');
@@ -607,6 +637,7 @@
                 const aiData = await aiRes.json();
                 
                 if (aiData.status === 'success') {
+                    currentRawAnalysisResponse = aiData.response;
                     // Render markdown
                     const providerUsed = aiData.provider_used === 'ollama' ? '🏠 Local' : '☁️ Cloud';
                     const responseHTML = `<div class="provider-badge" style="font-size: 0.85em; color: #999; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;">Using: ${providerUsed}</div>` + 
@@ -647,7 +678,7 @@
                 currentHighlightId = highlightData.highlight_id;
 
                 // Step 2: Save analysis
-                const analysisContent = document.getElementById('panel-analysis-content').textContent;
+                const analysisContent = currentRawAnalysisResponse;
                 
                 const saveRes = await fetch('/api/ai/save', {
                     method: 'POST',
@@ -699,11 +730,17 @@
             
             // Reset panel state
             document.getElementById('save-btn').style.display = 'inline-block';
+            document.getElementById('delete-highlight-btn').style.display = 'none';
+            document.getElementById('delete-highlight-btn').disabled = false;
+            document.getElementById('delete-highlight-btn').textContent = '删除高亮';
             document.getElementById('saved-indicator').classList.remove('show');
             document.getElementById('analysis-box').style.display = 'block';
             document.getElementById('comment-input-area').style.display = 'none';
             document.getElementById('panel-actions').style.display = 'flex';
             document.getElementById('comment-actions').style.display = 'none';
+            document.getElementById('delete-comment-btn').style.display = 'none';
+            document.getElementById('delete-comment-btn').disabled = false;
+            document.getElementById('delete-comment-btn').textContent = '删除高亮';
         }
         
         // Comment functions
@@ -826,17 +863,25 @@
             }
         }
         
-        async function deleteComment() {
-            if (!confirm('确定要删除这条笔记吗？')) {
+        async function deleteCurrentHighlight() {
+            if (!currentHighlightId) {
+                return;
+            }
+
+            if (!confirm('确定要删除这条高亮吗？相关笔记和分析也会一起删除。')) {
                 return;
             }
             
-            const deleteBtn = document.getElementById('delete-comment-btn');
+            const deleteBtn = document.getElementById(
+                document.getElementById('comment-actions').style.display === 'flex'
+                    ? 'delete-comment-btn'
+                    : 'delete-highlight-btn'
+            );
             deleteBtn.disabled = true;
             deleteBtn.textContent = '删除中...';
             
             try {
-                const response = await fetch(`/api/ai/delete/${currentAnalysisId}`, {
+                const response = await fetch(`/api/highlight/${currentHighlightId}`, {
                     method: 'DELETE'
                 });
 
