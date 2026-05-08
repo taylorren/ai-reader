@@ -72,9 +72,17 @@ class Database:
                 book_id TEXT NOT NULL UNIQUE,
                 chapter_index INTEGER NOT NULL,
                 scroll_position INTEGER DEFAULT 0,
+                is_completed INTEGER NOT NULL DEFAULT 0,
                 last_read_at TEXT NOT NULL
             )
         """)
+
+        cursor.execute("PRAGMA table_info(reading_progress)")
+        progress_columns = {row[1] for row in cursor.fetchall()}
+        if "is_completed" not in progress_columns:
+            cursor.execute(
+                "ALTER TABLE reading_progress ADD COLUMN is_completed INTEGER NOT NULL DEFAULT 0"
+            )
 
         conn.commit()
         conn.close()
@@ -266,11 +274,54 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT chapter_index, scroll_position FROM reading_progress
+            SELECT chapter_index, scroll_position, is_completed FROM reading_progress
             WHERE book_id = ?
         """, (book_id,))
 
         result = cursor.fetchone()
         conn.close()
 
-        return dict(result) if result else None
+        if not result:
+            return None
+
+        progress = dict(result)
+        progress["is_completed"] = bool(progress.get("is_completed", 0))
+        return progress
+
+    def set_completed(self, book_id: str, is_completed: bool):
+        """Mark a book as completed or not completed."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT chapter_index, scroll_position FROM reading_progress WHERE book_id = ?",
+            (book_id,),
+        )
+        result = cursor.fetchone()
+
+        if result:
+            chapter_index, scroll_position = result
+        else:
+            chapter_index, scroll_position = 0, 0
+
+        cursor.execute(
+            """
+            INSERT INTO reading_progress (
+                book_id, chapter_index, scroll_position, is_completed, last_read_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(book_id) DO UPDATE SET
+                is_completed = excluded.is_completed,
+                last_read_at = excluded.last_read_at
+            """,
+            (
+                book_id,
+                chapter_index,
+                scroll_position,
+                int(is_completed),
+                datetime.now().isoformat(),
+            ),
+        )
+
+        conn.commit()
+        conn.close()

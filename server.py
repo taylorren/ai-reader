@@ -2,6 +2,7 @@
 
 import os
 import pickle
+import re
 from functools import lru_cache
 from typing import Optional
 from datetime import datetime
@@ -27,6 +28,9 @@ TOCEntry = reader3_models.TOCEntry
 
 BASE_DIR = Path(__file__).resolve().parent
 
+LATIN_WORD_RE = re.compile(r"\b\w+\b", re.UNICODE)
+CJK_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+
 
 def get_asset_version(*relative_paths: str) -> int:
     """Return a stable cache-busting token based on asset modification times."""
@@ -36,6 +40,25 @@ def get_asset_version(*relative_paths: str) -> int:
         if asset_path.exists():
             mtimes.append(asset_path.stat().st_mtime_ns)
     return max(mtimes, default=0)
+
+
+def estimate_book_word_count(book: Book) -> int:
+    """Estimate word count from parsed chapter text."""
+    total_latin_words = 0
+    total_cjk_chars = 0
+
+    for chapter in book.spine:
+        chapter_text = chapter.text or ""
+        total_latin_words += len(LATIN_WORD_RE.findall(chapter_text))
+        total_cjk_chars += len(CJK_CHAR_RE.findall(chapter_text))
+
+    # CJK scripts are not whitespace-delimited; use a conservative approximation.
+    return total_latin_words + round(total_cjk_chars / 2)
+
+
+def format_word_count(word_count: int) -> str:
+    """Format a word-count estimate for compact display."""
+    return f"{word_count:,} words"
 
 # Load .env file at startup
 def load_env():
@@ -162,19 +185,29 @@ async def library_view(request: Request):
                 total_chapters = len(book.spine)
                 progress_percent = 0
                 current_chapter = None
+                is_completed = False
                 if progress_data:
                     current_chapter = progress_data['chapter_index']
+                    is_completed = progress_data.get('is_completed', False)
                     progress_percent = int((current_chapter + 1) / total_chapters * 100)
+
+                if is_completed:
+                    progress_percent = 100
+
+                estimated_word_count = estimate_book_word_count(book)
 
                 books.append({
                     "id": item,
                     "title": book.metadata.title,
                     "author": ", ".join(book.metadata.authors),
                     "chapters": total_chapters,
+                    "estimated_word_count": estimated_word_count,
+                    "estimated_word_count_display": format_word_count(estimated_word_count),
                     "folder_suffix": folder_suffix,
                     "cover": book.cover_image if hasattr(book, 'cover_image') else None,
                     "progress": current_chapter,
-                    "progress_percent": progress_percent
+                    "progress_percent": progress_percent,
+                    "is_completed": is_completed
                 })
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
 
@@ -279,6 +312,20 @@ async def save_reading_progress(book_id: str, chapter_index: int, scroll_positio
     try:
         db.save_progress(book_id, chapter_index, scroll_position)
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/books/{book_id}/completion")
+async def update_book_completion(book_id: str, completed: bool):
+    """Mark a book as completed or not completed."""
+    book = load_book_cached(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    try:
+        db.set_completed(book_id, completed)
+        return {"status": "success", "book_id": book_id, "completed": completed}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
