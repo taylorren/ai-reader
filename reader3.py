@@ -65,6 +65,36 @@ class Book:
     source_file: str
     processed_at: str
     cover_image: Optional[str] = None  # Cover image filename
+
+
+def rewrite_embedded_image_paths(soup: BeautifulSoup, image_map: Dict[str, str]) -> None:
+    """Rewrite both HTML and SVG image references to extracted local paths."""
+
+    def resolve_image_path(raw_ref: str) -> Optional[str]:
+        if not raw_ref:
+            return None
+
+        ref_without_query = raw_ref.split("?", 1)[0].split("#", 1)[0]
+        ref_decoded = unquote(ref_without_query)
+        filename = os.path.basename(ref_decoded)
+
+        if ref_decoded in image_map:
+            return image_map[ref_decoded]
+        if filename in image_map:
+            return image_map[filename]
+        return None
+
+    for img in soup.find_all('img'):
+        resolved_path = resolve_image_path(img.get('src', ''))
+        if resolved_path:
+            img['src'] = resolved_path
+
+    for svg_image in soup.find_all('image'):
+        for attr_name in ('xlink:href', 'href'):
+            resolved_path = resolve_image_path(svg_image.get(attr_name, ''))
+            if resolved_path:
+                svg_image[attr_name] = resolved_path
+                break
     version: str = "3.0"
 
 
@@ -288,21 +318,8 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
             raw_content = item.get_content().decode('utf-8', errors='ignore')
             soup = BeautifulSoup(raw_content, 'html.parser')
 
-            # A. Fix Images
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
-                if not src:
-                    continue
-
-                # Decode URL (part01/image%201.jpg -> part01/image 1.jpg)
-                src_decoded = unquote(src)
-                filename = os.path.basename(src_decoded)
-
-                # Try to find in map
-                if src_decoded in image_map:
-                    img['src'] = image_map[src_decoded]
-                elif filename in image_map:
-                    img['src'] = image_map[filename]
+            # A. Fix embedded image references in both HTML and SVG content.
+            rewrite_embedded_image_paths(soup, image_map)
 
             # B. Clean HTML
             soup = clean_html_content(soup)

@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Optional
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse
@@ -17,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import shutil
 import subprocess
+from bs4 import BeautifulSoup
 
 # Keep legacy pickle symbols available in this module namespace.
 import reader3 as reader3_models
@@ -118,6 +120,42 @@ def build_grouped_books(books: list[dict]) -> list[dict]:
         })
 
     return grouped_books
+
+
+def rewrite_chapter_image_paths(content: str, image_map: dict[str, str]) -> str:
+    """Normalize chapter image references for both HTML and inline SVG content."""
+    if not content or not image_map:
+        return content
+
+    soup = BeautifulSoup(content, "html.parser")
+
+    def resolve_image_path(raw_ref: str) -> Optional[str]:
+        if not raw_ref:
+            return None
+
+        ref_without_query = raw_ref.split("?", 1)[0].split("#", 1)[0]
+        ref_decoded = unquote(ref_without_query)
+        filename = os.path.basename(ref_decoded)
+
+        if ref_decoded in image_map:
+            return image_map[ref_decoded]
+        if filename in image_map:
+            return image_map[filename]
+        return None
+
+    for img in soup.find_all("img"):
+        resolved_path = resolve_image_path(img.get("src", ""))
+        if resolved_path:
+            img["src"] = resolved_path
+
+    for svg_image in soup.find_all("image"):
+        for attr_name in ("xlink:href", "href"):
+            resolved_path = resolve_image_path(svg_image.get(attr_name, ""))
+            if resolved_path:
+                svg_image[attr_name] = resolved_path
+                break
+
+    return str(soup)
 
 # Load .env file at startup
 def load_env():
@@ -340,6 +378,7 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         raise HTTPException(status_code=404, detail="Chapter not found")
 
     current_chapter = book.spine[chapter_index]
+    current_chapter_content = rewrite_chapter_image_paths(current_chapter.content, book.images)
 
     spine_map = {chapter.href: chapter.order for chapter in book.spine}
 
@@ -361,6 +400,7 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         "request": request,
         "book": book,
         "current_chapter": current_chapter,
+        "current_chapter_content": current_chapter_content,
         "chapter_index": chapter_index,
         "book_id": book_id,
         "spine_map": spine_map,

@@ -150,7 +150,7 @@
             </div>
             
             <div class="book-content" id="book-content">
-                {{ current_chapter.content | safe }}
+                {{ current_chapter_content | safe }}
             </div>
 
             <!-- Bottom Navigation -->
@@ -242,6 +242,10 @@
         </div>
         <div class="context-menu-item" onclick="handleContextAction('comment')">
             添加笔记
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" onclick="handleContextAction('copy_search')">
+            复制文本用于外部搜索
         </div>
     </div>
 

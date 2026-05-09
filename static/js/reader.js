@@ -557,10 +557,41 @@
             document.getElementById('context-menu').style.display = 'none';
         }
 
+        async function copyTextToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = text;
+            tempTextarea.setAttribute('readonly', '');
+            tempTextarea.style.position = 'absolute';
+            tempTextarea.style.left = '-9999px';
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+
+            try {
+                document.execCommand('copy');
+            } finally {
+                document.body.removeChild(tempTextarea);
+            }
+        }
+
         async function handleContextAction(actionType) {
             hideContextMenu();
             
             if (!selectedText) return;
+
+            if (actionType === 'copy_search') {
+                try {
+                    await copyTextToClipboard(selectedText);
+                } catch (error) {
+                    console.error('Failed to copy text:', error);
+                    alert('复制失败，请重试。');
+                }
+                return;
+            }
 
             currentAnalysisType = actionType;
             

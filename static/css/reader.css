@@ -176,7 +176,7 @@
         .nav-btn.disabled { opacity: 0.5; pointer-events: none; border-color: #ccc; color: #ccc; }
 
         /* Right Panel - AI Analysis */
-        #ai-panel { width: 400px; background: #fafbfc; border-left: 1px solid #e9ecef; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; }
+        #ai-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100vw); background: #fafbfc; border-left: 1px solid #e9ecef; overflow-y: auto; display: flex; flex-direction: column; z-index: 1100; box-shadow: -8px 0 24px rgba(0,0,0,0.12); }
         #ai-panel.hidden { display: none !important; }
         
         .panel-header { padding: 20px; border-bottom: 1px solid #e9ecef; background: white; }
