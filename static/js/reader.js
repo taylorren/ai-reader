@@ -994,6 +994,10 @@
 
             const modal = document.getElementById('link-modal');
             const isModalOpen = modal && modal.classList.contains('show');
+            const aiPanel = document.getElementById('ai-panel');
+            const isPanelOpen = aiPanel && !aiPanel.classList.contains('hidden');
+            const contextMenu = document.getElementById('context-menu');
+            const isContextMenuOpen = contextMenu && contextMenu.style.display === 'block';
             
             if (e.key === 'Escape') {
                 if (isModalOpen) {
@@ -1001,6 +1005,11 @@
                     e.stopPropagation();
                     closeModal();
                     return;
+                }
+
+                if (isPanelOpen || isContextMenuOpen) {
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
 
                 closePanel();
