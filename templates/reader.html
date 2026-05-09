@@ -27,8 +27,10 @@
 
     <!-- Left Sidebar - TOC -->
     <div id="sidebar">
-        <a href="/" class="nav-home">← 返回图书馆</a>
-        <div class="nav-header">{{ book.metadata.title }}</div>
+        <div class="sidebar-sticky-header">
+            <a href="/" class="nav-home">← 返回图书馆</a>
+            <div class="nav-header">{{ book.metadata.title }}</div>
+        </div>
 
         {% macro render_toc(items) %}
             <ul class="toc-list">

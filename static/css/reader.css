@@ -148,6 +148,7 @@
 
         /* Left Sidebar - TOC */
         #sidebar { width: 280px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 20px; flex-shrink: 0; }
+        .sidebar-sticky-header { position: sticky; top: -20px; background: inherit; padding-top: 20px; margin: -20px -20px 16px; padding-left: 20px; padding-right: 20px; z-index: 10; }
         .nav-header { font-family: -apple-system, sans-serif; font-weight: bold; color: #495057; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #dee2e6; }
         .nav-home { display: block; margin-bottom: 20px; color: #3498db; text-decoration: none; font-family: -apple-system, sans-serif; font-size: 0.9em; }
 
