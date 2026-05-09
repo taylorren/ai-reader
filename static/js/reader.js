@@ -22,6 +22,39 @@
             }
         }
 
+        function escapeSelectorFragment(value) {
+            if (window.CSS && typeof window.CSS.escape === 'function') {
+                return window.CSS.escape(value);
+            }
+
+            return value.replace(/([ !\"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+        }
+
+        function scrollModalToHash(modalBody, hash) {
+            const scrollContainer = modalBody.closest('.modal-content') || modalBody;
+
+            if (!hash) {
+                scrollContainer.scrollTop = 0;
+                return;
+            }
+
+            const rawId = decodeURIComponent(hash.replace(/^#/, ''));
+            if (!rawId) {
+                scrollContainer.scrollTop = 0;
+                return;
+            }
+
+            const escapedId = escapeSelectorFragment(rawId);
+            const target = modalBody.querySelector(`#${escapedId}, a[name="${escapedId}"]`);
+
+            if (target) {
+                target.scrollIntoView({ block: 'start', behavior: 'auto' });
+                return;
+            }
+
+            scrollContainer.scrollTop = 0;
+        }
+
         // AI Feature Variables
         const BOOK_ID = (readerDataEl && readerDataEl.dataset.bookId) || '';
         const CHAPTER_INDEX = Number((readerDataEl && readerDataEl.dataset.chapterIndex) || 0);
@@ -958,8 +991,18 @@
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
                 return;
             }
+
+            const modal = document.getElementById('link-modal');
+            const isModalOpen = modal && modal.classList.contains('show');
             
             if (e.key === 'Escape') {
+                if (isModalOpen) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeModal();
+                    return;
+                }
+
                 closePanel();
                 hideContextMenu();
                 closeModal();
@@ -988,12 +1031,12 @@
                 // Check if it's an internal link to this book
                 if (url.pathname.includes('/read/')) {
                     e.preventDefault();
-                    showLinkModal(url.pathname);
+                    showLinkModal(`${url.pathname}${url.search}`, url.hash);
                 }
             }
         });
         
-        async function showLinkModal(path) {
+        async function showLinkModal(path, hash = '') {
             const modal = document.getElementById('link-modal');
             const modalBody = document.getElementById('modal-body');
             const modalTitle = document.getElementById('modal-title');
@@ -1013,6 +1056,7 @@
                 
                 if (content) {
                     modalBody.innerHTML = content.innerHTML;
+                    scrollModalToHash(modalBody, hash);
                 } else {
                     modalBody.innerHTML = '<p>Content not found</p>';
                 }
