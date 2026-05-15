@@ -14,6 +14,22 @@ import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup, Comment
 
+# Patch ebooklib: _parse_nav crashes with IndexError when a NAV document
+# exists but has no <nav epub:type="toc"> element (non-standard EPUBs).
+# The page-list case already handles missing nodes gracefully; mirror that
+# behaviour for the toc case.
+_original_parse_nav = epub.EpubReader._parse_nav
+
+def _patched_parse_nav(self, data, base_path, navtype="toc"):
+    if navtype == "toc":
+        from ebooklib.utils import parse_html_string
+        html_node = parse_html_string(data)
+        if not html_node.xpath("//nav[@*='toc']"):
+            return
+    _original_parse_nav(self, data, base_path, navtype)
+
+epub.EpubReader._parse_nav = _patched_parse_nav
+
 # --- Data structures ---
 
 @dataclass
@@ -205,8 +221,28 @@ def extract_metadata_robust(epub_book) -> BookMetadata:
 
 # --- Main Conversion Logic ---
 
+def _check_drm(epub_path: str):
+    """Raise an error early if the EPUB is DRM-protected."""
+    import zipfile as _zf
+    try:
+        with _zf.ZipFile(epub_path) as z:
+            if 'META-INF/encryption.xml' in z.namelist():
+                enc = z.read('META-INF/encryption.xml').decode('utf-8', errors='replace')
+                if 'adept' in enc.lower() or 'EncryptedData' in enc:
+                    raise ValueError(
+                        "This EPUB is protected by Adobe ADEPT DRM. "
+                        "The content is encrypted and cannot be imported. "
+                        "You need a DRM-free version of this file."
+                    )
+    except _zf.BadZipFile:
+        pass  # Let ebooklib handle non-zip EPUBs
+
+
 def process_epub(epub_path: str, output_dir: str) -> Book:
     """Convert an EPUB file into the project Book structure and extracted assets."""
+
+    # 0. Fail fast if DRM-protected
+    _check_drm(epub_path)
 
     # 1. Load Book
     print(f"Loading {epub_path}...")
@@ -314,9 +350,10 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
             continue
 
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            # Raw content
-            raw_content = item.get_content().decode('utf-8', errors='ignore')
-            soup = BeautifulSoup(raw_content, 'html.parser')
+            # Raw content — detect encoding from the HTML meta charset declaration,
+            # falling back to UTF-8. This handles Big5/GB2312/etc. EPUBs correctly.
+            raw_bytes = item.get_content()
+            soup = BeautifulSoup(raw_bytes, 'html.parser')
 
             # A. Fix embedded image references in both HTML and SVG content.
             rewrite_embedded_image_paths(soup, image_map)
@@ -393,6 +430,9 @@ if __name__ == "__main__":
 
     epub_file = sys.argv[1]
     assert os.path.exists(epub_file), "File not found."
+
+    # Fail fast if DRM-protected
+    _check_drm(epub_file)
 
     # Create books directory if it doesn't exist
     BOOKS_DIR = "books"
