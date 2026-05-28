@@ -266,7 +266,7 @@
         .settings-value { font-size: 0.85em; color: #666; margin-top: 5px; text-align: center; }
 
         /* Saved indicator */
-        .saved-indicator { color: #28a745; font-size: 0.85em; margin-top: 10px; display: none; }
+        .saved-indicator { color: #28a745; font-size: 0.85em; margin-top: 10px; }
         .saved-indicator.show { display: block; }
 
         /* Saved Highlight markers - Color coded by type */
@@ -309,10 +309,10 @@
         
         /* Comment input area */
         #comment-input-area {
-            display: none;
         }
         #comment-textarea {
             width: 100%;
+            box-sizing: border-box;
             min-height: 120px;
             padding: 12px;
             border: 1px solid #ddd;

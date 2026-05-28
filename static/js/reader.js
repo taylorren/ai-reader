@@ -7,66 +7,26 @@ marked.setOptions({
 const { createApp } = Vue;
 
 createApp({
+    mixins: [PanelMixin],
+    delimiters: ['[[', ']]'],
     data() {
         return {
+            // Book
             bookId: '',
             chapterIndex: 0,
             savedScroll: 0,
             targetHighlightId: '',
             spineMap: {},
-            selectedText: '',
-            selectedContext: '',
-            currentHighlightId: null,
-            currentAnalysisId: null,
-            currentAnalysisType: '',
-            currentRawAnalysisResponse: '',
             savedHighlights: [],
+            currentScrollPosition: 0,
+
+            // AI provider (shared with PanelMixin)
             serverProviderOverride: null,
             serverDefaultProvider: 'ollama_cloud',
-            currentScrollPosition: 0,
-            showSettingsDropdown: false,
-            // Panel state (replaces imperative getElementById + style.display)
-            panelOpen: false,
-            panelMode: 'analysis',          // 'analysis' | 'comment'
-            panelTitle: 'AI 分析',
-            panelSelectedText: '',
-            panelAnalysisTypeLabel: '',
-            panelAnalysisHtml: '<div class="loading">等待分析...</div>',
-            commentText: '',
-            saveBtnDisabled: true,
-            saveBtnText: '保存到数据库',
-            showSaveBtn: true,
-            showDeleteBtn: false,
-            showSaved: false,
-            showPanelActions: true,
-            showCommentActions: false,
-            showSaveCommentBtn: false,
-            showUpdateCommentBtn: false,
-            showDeleteCommentBtn: false,
-            // Toast notifications
-            toastVisible: false,
-            toastMessage: '',
-            toastType: 'info',           // 'info' | 'error' | 'success'
-            toastTimer: null,
-            // Confirm dialog (replaces window.confirm)
-            confirmVisible: false,
-            confirmMessage: '',
-            confirmResolve: null,
-        };
-    },
 
-    computed: {
-        aiSettings() {
-            const mode = localStorage.getItem('ai-mode');
-            const provider = mode
-                ? (mode === 'remote' ? 'ollama_cloud' : 'ollama')
-                : (localStorage.getItem('ai-provider') || this.serverDefaultProvider);
-            return {
-                provider: this.serverProviderOverride || provider,
-                mode: mode || (this.serverProviderOverride || provider === 'ollama_cloud' ? 'remote' : 'local'),
-                serverOverride: this.serverProviderOverride,
-            };
-        },
+            // Settings dropdown
+            showSettingsDropdown: false,
+        };
     },
 
     mounted() {
@@ -83,13 +43,14 @@ createApp({
             }
         }
 
-        this.initializeProviderUI();
+        this.initializeProviderUI();        // PanelMixin
         this.loadSavedHighlights();
         this.restoreScrollPosition();
         this.loadSavedSettings();
         this.setupProgressSaving();
         this.setupKeyboardShortcuts();
-        this.setupContextMenu();
+        this.setupContextMenu();            // PanelMixin
+        this.setupPanelListeners();         // PanelMixin
         this.setupLinkInterceptor();
 
         this.$nextTick(() => {
@@ -102,36 +63,6 @@ createApp({
     },
 
     methods: {
-        // ---- Toast & Confirm (replaces alert/confirm) ----
-
-        showToast(message, type = 'info') {
-            if (this.toastTimer) clearTimeout(this.toastTimer);
-            this.toastMessage = message;
-            this.toastType = type;
-            this.toastVisible = true;
-            this.toastTimer = setTimeout(() => {
-                this.toastVisible = false;
-            }, 2500);
-        },
-
-        showConfirm(message) {
-            return new Promise((resolve) => {
-                this.confirmMessage = message;
-                this.confirmVisible = true;
-                this.confirmResolve = resolve;
-            });
-        },
-
-        onConfirmYes() {
-            this.confirmVisible = false;
-            if (this.confirmResolve) this.confirmResolve(true);
-        },
-
-        onConfirmNo() {
-            this.confirmVisible = false;
-            if (this.confirmResolve) this.confirmResolve(false);
-        },
-
         // ---- Scroll progress (debounced) ----
 
         _debouncedSaveProgress() {
@@ -181,39 +112,6 @@ createApp({
                 return;
             }
             scrollContainer.scrollTop = 0;
-        },
-
-        normalizeSavedAnalysisContent(text) {
-            if (!text) return '';
-            return text.replace(/^(Using:\s*(?:🏠 Local|☁️ Cloud))(?=\S)/m, '$1\n\n');
-        },
-
-        // ---- Provider ----
-
-        async initializeProviderUI() {
-            try {
-                const response = await fetch('/api/settings');
-                const data = await response.json();
-                this.serverProviderOverride = data.provider_override;
-                this.serverDefaultProvider = data.default_provider || 'ollama_cloud';
-            } catch (error) {
-                console.error('Failed to load server settings:', error);
-            }
-        },
-
-        async toggleAIProvider() {
-            const newProvider = this.aiSettings.provider === 'ollama' ? 'ollama_cloud' : 'ollama';
-            try {
-                const response = await fetch('/api/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider_override: newProvider }),
-                });
-                const data = await response.json();
-                this.serverProviderOverride = data.provider_override;
-            } catch (error) {
-                console.error('Failed to toggle AI provider:', error);
-            }
         },
 
         // ---- Highlights ----
@@ -386,51 +284,6 @@ createApp({
             return range;
         },
 
-        showSavedAnalysis(highlight) {
-            this.openPanel();
-            this.currentHighlightId = highlight.id;
-            this.currentAnalysisId = highlight.analyses && highlight.analyses.length > 0
-                ? highlight.analyses[0].id : null;
-            this.selectedText = highlight.selected_text;
-            this.panelSelectedText = highlight.selected_text;
-            this.showSaved = true;
-
-            if (highlight.analyses && highlight.analyses.length > 0) {
-                const analysis = highlight.analyses[0];
-                if (analysis.analysis_type === 'comment') {
-                    this.panelTitle = '💬 我的笔记';
-                    this.panelMode = 'comment';
-                    this.commentText = analysis.response;
-                    this.showPanelActions = false;
-                    this.showCommentActions = true;
-                    this.showSaveCommentBtn = false;
-                    this.showUpdateCommentBtn = true;
-                    this.showDeleteCommentBtn = true;
-                    this.currentAnalysisType = 'comment';
-                } else {
-                    this.panelTitle = '📚 已保存的分析';
-                    this.panelMode = 'analysis';
-                    this.panelAnalysisTypeLabel =
-                        analysis.analysis_type === 'fact_check' ? '解释说明' : '深入讨论';
-                    this.panelAnalysisHtml = marked.parse(
-                        this.normalizeSavedAnalysisContent(analysis.response)
-                    );
-                    this.showPanelActions = true;
-                    this.showCommentActions = false;
-                    this.showSaveBtn = false;
-                    this.showDeleteBtn = true;
-                }
-            } else {
-                this.panelTitle = '📚 已保存的分析';
-                this.panelMode = 'analysis';
-                this.panelAnalysisHtml = '暂无AI分析';
-                this.showPanelActions = true;
-                this.showCommentActions = false;
-                this.showSaveBtn = false;
-                this.showDeleteBtn = true;
-            }
-        },
-
         // ---- Progress ----
 
         setupProgressSaving() {
@@ -484,393 +337,6 @@ createApp({
                 }
             };
             setTimeout(restore, 100);
-        },
-
-        // ---- Context Menu ----
-
-        setupContextMenu() {
-            const bookContent = document.getElementById('book-content');
-            if (!bookContent) return;
-
-            bookContent.addEventListener('contextmenu', (e) => {
-                const selection = window.getSelection();
-                const text = selection.toString().trim();
-                if (text.length > 0) {
-                    e.preventDefault();
-                    this.selectedText = text;
-                    const range = selection.getRangeAt(0);
-                    const container = range.commonAncestorContainer.parentElement;
-                    this.selectedContext = container.textContent || '';
-                    this.showContextMenu(e.pageX, e.pageY);
-                }
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('#context-menu')) {
-                    this.hideContextMenu();
-                }
-            });
-        },
-
-        showContextMenu(x, y) {
-            const menu = document.getElementById('context-menu');
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
-            menu.style.display = 'block';
-        },
-
-        hideContextMenu() {
-            document.getElementById('context-menu').style.display = 'none';
-        },
-
-        async copyTextToClipboard(text) {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-                return;
-            }
-            const tempTextarea = document.createElement('textarea');
-            tempTextarea.value = text;
-            tempTextarea.setAttribute('readonly', '');
-            tempTextarea.style.position = 'absolute';
-            tempTextarea.style.left = '-9999px';
-            document.body.appendChild(tempTextarea);
-            tempTextarea.select();
-            try {
-                document.execCommand('copy');
-            } finally {
-                document.body.removeChild(tempTextarea);
-            }
-        },
-
-        async handleContextAction(actionType) {
-            this.hideContextMenu();
-            if (!this.selectedText) return;
-
-            if (actionType === 'copy_search') {
-                try {
-                    await this.copyTextToClipboard(this.selectedText);
-                } catch (error) {
-                    console.error('Failed to copy text:', error);
-                    this.showToast('复制失败，请重试。', 'error');
-                }
-                return;
-            }
-
-            this.currentAnalysisType = actionType;
-            this.openPanel();
-            this.currentHighlightId = null;
-            this.currentAnalysisId = null;
-            this.currentRawAnalysisResponse = '';
-            this.showSaved = false;
-
-            if (actionType === 'comment') {
-                this.panelTitle = '💬 添加笔记';
-                this.panelSelectedText = this.selectedText;
-                this.panelMode = 'comment';
-                this.commentText = '';
-                this.showPanelActions = false;
-                this.showCommentActions = true;
-                this.showSaveCommentBtn = true;
-                this.showUpdateCommentBtn = false;
-                this.showDeleteCommentBtn = false;
-                this.$nextTick(() => {
-                    this.$refs.commentTextarea?.focus();
-                });
-                return;
-            }
-
-            // AI actions (fact_check, discussion)
-            this.panelMode = 'analysis';
-            this.showPanelActions = true;
-            this.showCommentActions = false;
-            this.panelTitle = actionType === 'fact_check' ? '📋 解释说明' : '💡 深入讨论';
-            this.panelSelectedText = this.selectedText;
-            this.panelAnalysisTypeLabel = actionType === 'fact_check' ? '解释说明' : '深入讨论';
-
-            const providerLabel = this.aiSettings.provider === 'ollama' ? 'Local' : 'Cloud';
-            this.panelAnalysisHtml = `<div class="loading">正在分析中... (${providerLabel})</div>`;
-            this.saveBtnDisabled = true;
-
-            try {
-                const aiRes = await fetch('/api/ai/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        highlight_id: 0,
-                        analysis_type: actionType,
-                        selected_text: this.selectedText,
-                        context: this.selectedContext,
-                        provider: this.aiSettings.provider,
-                    }),
-                });
-                const aiData = await aiRes.json();
-
-                if (aiData.status === 'success') {
-                    this.currentRawAnalysisResponse = aiData.response;
-                    const providerUsed = aiData.provider_used === 'ollama' ? '🏠 Local' : '☁️ Cloud';
-                    this.panelAnalysisHtml =
-                        `<div class="provider-badge" style="font-size: 0.85em; color: #999; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;">Using: ${providerUsed}</div>` +
-                        marked.parse(aiData.response);
-                    this.saveBtnDisabled = false;
-                } else {
-                    this.panelAnalysisHtml = '分析失败，请重试。';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.panelAnalysisHtml = '发生错误: ' + error.message;
-            }
-        },
-
-        // ---- Save / Delete ----
-
-        async saveAnalysis() {
-            this.saveBtnDisabled = true;
-            this.saveBtnText = '保存中...';
-
-            try {
-                const highlightRes = await fetch('/api/highlight', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        book_id: this.bookId,
-                        chapter_index: this.chapterIndex,
-                        selected_text: this.selectedText,
-                        context_before: this.selectedContext.substring(0, 200),
-                        context_after: this.selectedContext.substring(this.selectedContext.length - 200),
-                    }),
-                });
-                const highlightData = await highlightRes.json();
-                this.currentHighlightId = highlightData.highlight_id;
-
-                const saveRes = await fetch('/api/ai/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        highlight_id: this.currentHighlightId,
-                        analysis_type: this.currentAnalysisType,
-                        prompt: this.selectedText,
-                        response: this.currentRawAnalysisResponse,
-                    }),
-                });
-                const saveData = await saveRes.json();
-
-                if (saveData.status === 'success') {
-                    this.currentAnalysisId = saveData.analysis_id;
-                    this.showSaved = true;
-                    this.saveBtnText = '已保存';
-                    await this.loadSavedHighlights();
-                } else {
-                    this.saveBtnDisabled = false;
-                    this.saveBtnText = '保存失败';
-                    setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.saveBtnDisabled = false;
-                this.saveBtnText = '保存失败';
-                setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
-            }
-        },
-
-        async saveComment() {
-            const text = this.commentText.trim();
-            if (!text) {
-                this.showToast('请输入笔记内容', 'info');
-                return;
-            }
-
-            this.saveBtnText = '保存中...';
-            this.saveBtnDisabled = true;
-
-            try {
-                const highlightRes = await fetch('/api/highlight', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        book_id: this.bookId,
-                        chapter_index: this.chapterIndex,
-                        selected_text: this.selectedText,
-                        context_before: this.selectedContext.substring(0, 200),
-                        context_after: this.selectedContext.substring(this.selectedContext.length - 200),
-                    }),
-                });
-                const highlightData = await highlightRes.json();
-                this.currentHighlightId = highlightData.highlight_id;
-
-                const saveRes = await fetch('/api/ai/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        highlight_id: this.currentHighlightId,
-                        analysis_type: 'comment',
-                        prompt: this.selectedText,
-                        response: text,
-                    }),
-                });
-                const saveData = await saveRes.json();
-
-                if (saveData.status === 'success') {
-                    this.currentAnalysisId = saveData.analysis_id;
-                    this.showSaved = true;
-                    this.saveBtnText = '已保存';
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    this.saveBtnDisabled = false;
-                    this.saveBtnText = '保存失败';
-                    setTimeout(() => { this.saveBtnText = '保存笔记'; }, 2000);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.saveBtnDisabled = false;
-                this.saveBtnText = '保存失败';
-                setTimeout(() => { this.saveBtnText = '保存笔记'; }, 2000);
-            }
-        },
-
-        async updateComment() {
-            const text = this.commentText.trim();
-            if (!text) {
-                this.showToast('请输入笔记内容', 'info');
-                return;
-            }
-
-            this.saveBtnDisabled = true;
-            this.saveBtnText = '更新中...';
-
-            try {
-                const response = await fetch(`/api/ai/update/${this.currentAnalysisId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ response: text }),
-                });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    this.showSaved = true;
-                    this.saveBtnText = '已更新';
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    this.saveBtnDisabled = false;
-                    this.saveBtnText = '更新失败';
-                    setTimeout(() => { this.saveBtnText = '更新笔记'; }, 2000);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.saveBtnDisabled = false;
-                this.saveBtnText = '更新失败';
-                setTimeout(() => { this.saveBtnText = '更新笔记'; }, 2000);
-            }
-        },
-
-        async deleteCurrentHighlight() {
-            if (!this.currentHighlightId) return;
-            const ok = await this.showConfirm('确定要删除这条高亮吗？相关笔记和分析也会一起删除。');
-            if (!ok) return;
-
-            this.saveBtnDisabled = true;
-            this.saveBtnText = '删除中...';
-
-            try {
-                const response = await fetch(`/api/highlight/${this.currentHighlightId}`, {
-                    method: 'DELETE',
-                });
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    this.saveBtnText = '已删除';
-                    setTimeout(() => window.location.reload(), 500);
-                } else {
-                    this.saveBtnDisabled = false;
-                    this.saveBtnText = '删除失败';
-                    setTimeout(() => { this.saveBtnText = '删除'; }, 2000);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                this.saveBtnDisabled = false;
-                this.saveBtnText = '删除失败';
-                setTimeout(() => { this.saveBtnText = '删除'; }, 2000);
-            }
-        },
-
-        // ---- Panel ----
-
-        openPanel() {
-            this.panelOpen = true;
-        },
-
-        closePanel() {
-            this.panelOpen = false;
-            window.getSelection().removeAllRanges();
-
-            // Reset panel to default state
-            this.panelMode = 'analysis';
-            this.showSaveBtn = true;
-            this.showDeleteBtn = false;
-            this.saveBtnDisabled = true;
-            this.saveBtnText = '保存到数据库';
-            this.showSaved = false;
-            this.showPanelActions = true;
-            this.showCommentActions = false;
-            this.showDeleteCommentBtn = false;
-        },
-
-        togglePanel() {
-            if (this.panelOpen) {
-                this.closePanel();
-            } else {
-                this.openPanel();
-            }
-        },
-
-        // ---- Link Modal ----
-
-        setupLinkInterceptor() {
-            const bookContent = document.getElementById('book-content');
-            if (!bookContent) return;
-
-            bookContent.addEventListener('click', (e) => {
-                const link = e.target.closest('a');
-                if (link && link.href) {
-                    const url = new URL(link.href);
-                    if (url.pathname.includes('/read/')) {
-                        e.preventDefault();
-                        this.showLinkModal(`${url.pathname}${url.search}`, url.hash);
-                    }
-                }
-            });
-        },
-
-        async showLinkModal(path, hash = '') {
-            const modal = document.getElementById('link-modal');
-            const modalBody = document.getElementById('modal-body');
-            const modalTitle = document.getElementById('modal-title');
-
-            modal.classList.add('show');
-            modalBody.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Loading...</div>';
-            modalTitle.textContent = 'Reference';
-
-            try {
-                const response = await fetch(path);
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const content = doc.querySelector('.book-content');
-                if (content) {
-                    modalBody.innerHTML = content.innerHTML;
-                    this.scrollModalToHash(modalBody, hash);
-                } else {
-                    modalBody.innerHTML = '<p>Content not found</p>';
-                }
-            } catch (error) {
-                modalBody.innerHTML = '<p>Error loading content</p>';
-                console.error('Error loading modal content:', error);
-            }
-        },
-
-        closeModal(event) {
-            if (!event || event.target.id === 'link-modal' || event.target.classList.contains('modal-close')) {
-                document.getElementById('link-modal').classList.remove('show');
-            }
         },
 
         // ---- Reading Settings ----
@@ -986,7 +452,7 @@ createApp({
             }
         },
 
-        // ---- Keyboard ----
+        // ---- Keyboard (non-panel keys; panel ESC is in PanelMixin) ----
 
         setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {
@@ -994,23 +460,14 @@ createApp({
 
                 const modal = document.getElementById('link-modal');
                 const isModalOpen = modal && modal.classList.contains('show');
-                const contextMenu = document.getElementById('context-menu');
-                const isContextMenuOpen = contextMenu && contextMenu.style.display === 'block';
 
                 if (e.key === 'Escape') {
                     if (isModalOpen) {
                         e.preventDefault();
                         e.stopPropagation();
                         this.closeModal();
-                        return;
                     }
-                    if (this.panelOpen || isContextMenuOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                    this.closePanel();
-                    this.hideContextMenu();
-                    this.closeModal();
+                    // Panel / context-menu ESC is handled by PanelMixin.setupPanelListeners()
                 } else if (e.key === 'ArrowLeft') {
                     const prevBtn = document.querySelector('.chapter-nav a.nav-btn:first-child:not(.disabled)');
                     if (prevBtn) {
@@ -1034,6 +491,57 @@ createApp({
                     this.showSettingsDropdown = false;
                 }
             });
+        },
+
+        // ---- Link Modal ----
+
+        setupLinkInterceptor() {
+            const bookContent = document.getElementById('book-content');
+            if (!bookContent) return;
+
+            bookContent.addEventListener('click', (e) => {
+                const link = e.target.closest('a');
+                if (link && link.href) {
+                    const url = new URL(link.href);
+                    if (url.pathname.includes('/read/')) {
+                        e.preventDefault();
+                        this.showLinkModal(`${url.pathname}${url.search}`, url.hash);
+                    }
+                }
+            });
+        },
+
+        async showLinkModal(path, hash = '') {
+            const modal = document.getElementById('link-modal');
+            const modalBody = document.getElementById('modal-body');
+            const modalTitle = document.getElementById('modal-title');
+
+            modal.classList.add('show');
+            modalBody.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Loading...</div>';
+            modalTitle.textContent = 'Reference';
+
+            try {
+                const response = await fetch(path);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.book-content');
+                if (content) {
+                    modalBody.innerHTML = content.innerHTML;
+                    this.scrollModalToHash(modalBody, hash);
+                } else {
+                    modalBody.innerHTML = '<p>Content not found</p>';
+                }
+            } catch (error) {
+                modalBody.innerHTML = '<p>Error loading content</p>';
+                console.error('Error loading modal content:', error);
+            }
+        },
+
+        closeModal(event) {
+            if (!event || event.target.id === 'link-modal' || event.target.classList.contains('modal-close')) {
+                document.getElementById('link-modal').classList.remove('show');
+            }
         },
     },
 }).mount('#reader-app');

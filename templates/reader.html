@@ -181,17 +181,17 @@
     <div id="ai-panel" v-show="panelOpen">
         <div class="panel-header">
             <span class="panel-close" @click="closePanel">&times;</span>
-            <h3 class="panel-title">{{ panelTitle }}</h3>
+            <h3 class="panel-title">[[ panelTitle ]]</h3>
         </div>
         
         <div class="panel-content">
             <div class="selected-text-box">
                 <div class="selected-text-label">选中的文本</div>
-                <div class="selected-text-content">{{ panelSelectedText }}</div>
+                <div class="selected-text-content">[[ panelSelectedText ]]</div>
             </div>
             
             <div class="analysis-box" v-show="panelMode === 'analysis'">
-                <div class="analysis-type">{{ panelAnalysisTypeLabel }}</div>
+                <div class="analysis-type">[[ panelAnalysisTypeLabel ]]</div>
                 <div class="analysis-content markdown-content" v-html="panelAnalysisHtml"></div>
             </div>
             
@@ -207,7 +207,7 @@
         
         <div class="panel-actions" v-show="showPanelActions">
             <button class="btn btn-primary" :disabled="saveBtnDisabled" @click="saveAnalysis" v-show="showSaveBtn">
-                {{ saveBtnText }}
+                [[ saveBtnText ]]
             </button>
             <button class="btn btn-secondary" @click="deleteCurrentHighlight" v-show="showDeleteBtn" style="background: #f44336; color: white;">
                 删除高亮
@@ -257,13 +257,13 @@
 
     <!-- Toast Notification -->
     <div class="toast" :class="[toastType, { visible: toastVisible }]">
-        {{ toastMessage }}
+        [[ toastMessage ]]
     </div>
 
     <!-- Confirm Dialog -->
     <div class="confirm-overlay" v-show="confirmVisible" @click.self="onConfirmNo">
         <div class="confirm-box">
-            <p>{{ confirmMessage }}</p>
+            <p>[[ confirmMessage ]]</p>
             <div class="confirm-actions">
                 <button class="btn btn-secondary" @click="onConfirmNo">取消</button>
                 <button class="btn btn-primary" @click="onConfirmYes" style="background: #f44336; color: white;">删除</button>
@@ -288,6 +288,7 @@
 </div>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="/static/js/panel.js?v={{ asset_version }}"></script>
     <script src="/static/js/reader.js?v={{ asset_version }}"></script>
 </body>
 </html>
