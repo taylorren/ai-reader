@@ -1150,7 +1150,7 @@
             }
         });
         
-        function setFont(fontFamily) {
+        function setFont(fontFamily, event) {
             document.getElementById('book-content').style.fontFamily = fontFamily;
             localStorage.setItem('reader-font', fontFamily);
             
@@ -1158,7 +1158,9 @@
             document.querySelectorAll('.settings-option[data-font]').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
         }
         
         function setFontSize(size) {

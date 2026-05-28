@@ -22,6 +22,8 @@ books/*
 
 # Temp directory for uploads
 temp/
+uvtmp/
+.codex-commit-work/
 
 # AI Features & Data
 .env

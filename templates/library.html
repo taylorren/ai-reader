@@ -167,23 +167,23 @@
     </style>
 </head>
 <body>
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+    <button class="theme-toggle" @click="toggleTheme" title="Toggle theme">
         <span id="theme-icon">🌙</span>
     </button>
     
-    <div class="container">
+    <div id="library-app" class="container">
         <h1>我的AI电子书阅读器</h1>
 
         <div class="search-container">
-            <input type="text" id="search-input" class="search-input" placeholder="Search books by title or author..." onkeyup="filterBooks()">
+            <input type="text" id="search-input" class="search-input" placeholder="Search books by title or author..." @keyup="filterBooks">
             <span class="search-icon">🔍</span>
         </div>
 
         {% if grouped_books %}
         <div class="library-index">
-            <button type="button" class="library-index-link active" data-group="all" onclick="setTitleGroupFilter('all')">All</button>
+            <button type="button" class="library-index-link active" data-group="all" @click="setTitleGroupFilter('all')">All</button>
             {% for section in grouped_books %}
-            <button type="button" class="library-index-link" data-group="{{ section.key }}" onclick="setTitleGroupFilter('{{ section.key }}')">{{ section.label }}</button>
+            <button type="button" class="library-index-link" data-group="{{ section.key }}" @click="setTitleGroupFilter('{{ section.key }}')">{{ section.label }}</button>
             {% endfor %}
         </div>
         {% endif %}
@@ -195,7 +195,7 @@
                     <label class="settings-label">AI Provider:</label>
                     <div class="provider-toggle" aria-label="AI Provider switch">
                         <span class="toggle-label">Local AI</span>
-                        <div class="toggle-switch" id="ai-provider-toggle" onclick="toggleAIProviderSetting()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleAIProviderSetting)">
+                        <div class="toggle-switch" id="ai-provider-toggle" @click="toggleAIProviderSetting" role="switch" aria-checked="false" tabindex="0" @keydown="handleToggleKey($event, toggleAIProviderSetting)">
                             <div class="toggle-switch-slider"></div>
                         </div>
                         <span class="toggle-label">Cloud AI</span>
@@ -205,7 +205,7 @@
                     <label class="settings-label">View:</label>
                     <div class="provider-toggle" aria-label="Book view switch">
                         <span class="toggle-label">All books</span>
-                        <div class="toggle-switch" id="view-toggle" onclick="toggleViewFilter()" role="switch" aria-checked="false" tabindex="0" onkeydown="handleToggleKey(event, toggleViewFilter)">
+                        <div class="toggle-switch" id="view-toggle" @click="toggleViewFilter" role="switch" aria-checked="false" tabindex="0" @keydown="handleToggleKey($event, toggleViewFilter)">
                             <div class="toggle-switch-slider"></div>
                         </div>
                         <span class="toggle-label">Unfinished</span>
@@ -258,11 +258,11 @@
                     <div class="book-actions">
                         <a href="/read/{{ book.id }}" class="btn">浏览本书</a>
                         <div style="position: relative;">
-                            <button class="menu-btn" onclick="toggleMenu('{{ book.id }}', event)">⋮</button>
+                            <button class="menu-btn" @click="toggleMenu('{{ book.id }}', $event)">⋮</button>
                             <div id="menu-{{ book.id }}" class="dropdown-menu">
-                                <div class="dropdown-item" onclick="toggleCompleted('{{ book.id }}', event)">{% if book.is_completed %}Mark as Incomplete{% else %}Mark as Completed{% endif %}</div>
-                                <div class="dropdown-item" onclick="viewHighlights('{{ book.id }}', event)">View Highlights</div>
-                                <div class="dropdown-item danger" onclick="deleteBook('{{ book.id }}', event)">Delete Book</div>
+                                <div class="dropdown-item" @click="toggleCompleted('{{ book.id }}', $event)">{% if book.is_completed %}Mark as Incomplete{% else %}Mark as Completed{% endif %}</div>
+                                <div class="dropdown-item" @click="viewHighlights('{{ book.id }}', $event)">View Highlights</div>
+                                <div class="dropdown-item danger" @click="deleteBook('{{ book.id }}', $event)">Delete Book</div>
                             </div>
                         </div>
                     </div>
@@ -271,349 +271,15 @@
             {% endfor %}
 
             <!-- Add Book Card (Last) -->
-            <div class="add-book-card" onclick="document.getElementById('file-input').click()">
+            <div class="add-book-card" @click="openFilePicker">
                 <div class="add-icon">+</div>
                 <div class="add-text">Add New Book<br><small>Click to upload EPUB</small></div>
             </div>
-            <input type="file" id="file-input" accept=".epub" onchange="handleFileUpload(event)">
+            <input type="file" id="file-input" accept=".epub" @change="handleFileUpload">
         </div>
     </div>
-
-    <script>
-        let activeTitleGroupFilter = 'all';
-
-        // Theme toggle
-        function toggleTheme() {
-            const body = document.body;
-            const icon = document.getElementById('theme-icon');
-            
-            if (body.classList.contains('dark-mode')) {
-                body.classList.remove('dark-mode');
-                icon.textContent = '🌙';
-                localStorage.setItem('reader-theme', 'light');
-            } else {
-                body.classList.add('dark-mode');
-                icon.textContent = '☀️';
-                localStorage.setItem('reader-theme', 'dark');
-            }
-        }
-        
-        // Load saved theme
-        window.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('reader-theme');
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-                document.getElementById('theme-icon').textContent = '☀️';
-            }
-
-            document.querySelectorAll('.progress-bar-fill[data-progress-percent]').forEach(function(bar) {
-                const percent = bar.dataset.progressPercent || '0';
-                bar.style.width = `${percent}%`;
-            });
-
-            loadAISettings();
-        });
-
-        function loadAISettings() {
-            const savedMode = localStorage.getItem('ai-mode');
-
-            // Migrate old provider setting for backward compatibility.
-            let mode = savedMode;
-            if (!mode) {
-                const legacyProvider = localStorage.getItem('ai-provider');
-                mode = legacyProvider === 'deepseek' || legacyProvider === 'ollama_cloud' ? 'remote' : 'local';
-            }
-
-            const selectedMode = mode || 'local';
-            updateAIProviderToggle(selectedMode);
-        }
-
-        function saveAISettings(mode) {
-            const provider = mode === 'remote' ? 'ollama_cloud' : 'ollama';
-
-            localStorage.setItem('ai-mode', mode);
-            localStorage.setItem('ai-provider', provider);
-        }
-
-        function updateAIProviderToggle(mode) {
-            const toggle = document.getElementById('ai-provider-toggle');
-            if (!toggle) {
-                return;
-            }
-
-            const isCloud = mode === 'remote';
-            toggle.classList.toggle('active', isCloud);
-            toggle.setAttribute('aria-checked', String(isCloud));
-        }
-
-        function toggleAIProviderSetting() {
-            const toggle = document.getElementById('ai-provider-toggle');
-            const nextMode = toggle && toggle.classList.contains('active') ? 'local' : 'remote';
-            updateAIProviderToggle(nextMode);
-            saveAISettings(nextMode);
-        }
-
-        function updateViewToggle(showUnfinishedOnly) {
-            const toggle = document.getElementById('view-toggle');
-            if (!toggle) {
-                return;
-            }
-
-            toggle.classList.toggle('active', showUnfinishedOnly);
-            toggle.setAttribute('aria-checked', String(showUnfinishedOnly));
-        }
-
-        function toggleViewFilter() {
-            const toggle = document.getElementById('view-toggle');
-            const showUnfinishedOnly = !(toggle && toggle.classList.contains('active'));
-            updateViewToggle(showUnfinishedOnly);
-            filterBooks();
-        }
-
-        function handleToggleKey(event, toggleFn) {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                toggleFn();
-            }
-        }
-
-        function setTitleGroupFilter(group) {
-            activeTitleGroupFilter = group;
-            document.querySelectorAll('.library-index-link[data-group]').forEach(link => {
-                link.classList.toggle('active', link.dataset.group === group);
-            });
-            filterBooks();
-        }
-        
-        function filterBooks() {
-            const searchInput = document.getElementById('search-input');
-            const viewToggle = document.getElementById('view-toggle');
-            const searchTerm = searchInput.value.toLowerCase();
-            const bookCards = document.querySelectorAll('.book-card');
-            const filterUnfinishedOnly = viewToggle ? viewToggle.classList.contains('active') : false;
-            let visibleCount = 0;
-
-            bookCards.forEach(card => {
-                const title = card.querySelector('.book-title').textContent.toLowerCase();
-                const meta = card.querySelector('.book-meta').textContent.toLowerCase();
-                const isCompleted = card.dataset.completed === 'true';
-                const matchesTitleGroup = activeTitleGroupFilter === 'all' || card.dataset.group === activeTitleGroupFilter;
-                const matchesSearch = title.includes(searchTerm) || meta.includes(searchTerm);
-                const matchesCompletionFilter = !filterUnfinishedOnly || !isCompleted;
-
-                if (matchesSearch && matchesCompletionFilter && matchesTitleGroup) {
-                    card.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    card.classList.add('hidden');
-                }
-            });
-
-            // Show/hide "no results" message
-            let noResultsMsg = document.getElementById('no-results-msg');
-            if (visibleCount === 0 && (searchTerm !== '' || filterUnfinishedOnly)) {
-                if (!noResultsMsg) {
-                    noResultsMsg = document.createElement('div');
-                    noResultsMsg.id = 'no-results-msg';
-                    noResultsMsg.className = 'no-results';
-                    document.querySelector('.book-grid').appendChild(noResultsMsg);
-                }
-
-                if (searchTerm !== '' && filterUnfinishedOnly) {
-                    noResultsMsg.textContent = 'No unfinished books found matching "' + searchInput.value + '"';
-                } else if (searchTerm !== '') {
-                    noResultsMsg.textContent = 'No books found matching "' + searchInput.value + '"';
-                } else {
-                    noResultsMsg.textContent = 'No unfinished books found';
-                }
-            } else if (noResultsMsg) {
-                noResultsMsg.remove();
-            }
-        }
-
-        function toggleMenu(bookId, event) {
-            event.stopPropagation();
-            const menu = document.getElementById(`menu-${bookId}`);
-            
-            // Close all other menus
-            document.querySelectorAll('.dropdown-menu').forEach(m => {
-                if (m.id !== `menu-${bookId}`) {
-                    m.classList.remove('show');
-                }
-            });
-            
-            menu.classList.toggle('show');
-        }
-
-        // Close menus when clicking outside
-        document.addEventListener('click', function(event) {
-            if (!event.target.closest('.menu-btn')) {
-                document.querySelectorAll('.dropdown-menu').forEach(m => {
-                    m.classList.remove('show');
-                });
-            }
-        });
-
-        function viewHighlights(bookId, event) {
-            event.stopPropagation();
-            
-            // Close the menu
-            document.getElementById(`menu-${bookId}`).classList.remove('show');
-            
-            // Navigate to highlights view
-            window.location.href = `/highlights/${bookId}`;
-        }
-
-        async function toggleCompleted(bookId, event) {
-            event.stopPropagation();
-
-            const card = document.querySelector(`[data-book-id="${bookId}"]`);
-            const currentlyCompleted = card?.dataset.completed === 'true';
-            const nextCompleted = !currentlyCompleted;
-
-            document.getElementById(`menu-${bookId}`).classList.remove('show');
-
-            try {
-                const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/completion?completed=${nextCompleted}`, {
-                    method: 'POST'
-                });
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.detail || 'Failed to update completion');
-                }
-
-                window.location.reload();
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            }
-        }
-
-        async function deleteBook(bookId, event) {
-            event.stopPropagation();
-            
-            // Close the menu
-            document.getElementById(`menu-${bookId}`).classList.remove('show');
-            
-            if (!confirm(`Delete "${bookId}"?\n\nNote: Your highlights and AI analyses will be kept in the database.`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/delete/${bookId}`, {
-                    method: 'DELETE'
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    // Remove the card from UI
-                    const card = document.querySelector(`[data-book-id="${bookId}"]`);
-                    card.style.opacity = '0';
-                    card.style.transform = 'scale(0.8)';
-                    setTimeout(() => card.remove(), 300);
-                    
-                    // Show success message
-                    const statusDiv = document.getElementById('upload-status');
-                    const statusMessage = document.getElementById('status-message');
-                    statusDiv.className = 'upload-status show success';
-                    statusMessage.textContent = `✓ ${result.message}`;
-                    setTimeout(() => {
-                        statusDiv.className = 'upload-status';
-                    }, 3000);
-                } else {
-                    alert(`Error: ${result.detail || 'Failed to delete book'}`);
-                }
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            }
-        }
-
-        // Drag and drop functionality
-        const bookGrid = document.querySelector('.book-grid');
-        
-        bookGrid.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            bookGrid.style.opacity = '0.7';
-            bookGrid.style.background = '#e3f2fd';
-        });
-        
-        bookGrid.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            bookGrid.style.opacity = '1';
-            bookGrid.style.background = '';
-        });
-        
-        bookGrid.addEventListener('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            bookGrid.style.opacity = '1';
-            bookGrid.style.background = '';
-            
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const file = files[0];
-                if (file.name.endsWith('.epub')) {
-                    uploadFile(file);
-                } else {
-                    alert('Please drop an EPUB file');
-                }
-            }
-        });
-
-        async function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            uploadFile(file);
-        }
-        
-        async function uploadFile(file) {
-
-            const statusDiv = document.getElementById('upload-status');
-            const statusMessage = document.getElementById('status-message');
-            const progressFill = document.getElementById('progress-fill');
-
-            // Show upload status
-            statusDiv.className = 'upload-status show';
-            statusMessage.textContent = `Uploading ${file.name}...`;
-            progressFill.style.width = '30%';
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    progressFill.style.width = '100%';
-                    statusDiv.className = 'upload-status show success';
-                    statusMessage.textContent = `✓ ${result.message}`;
-                    
-                    // Reload page after 2 seconds
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
-                } else {
-                    statusDiv.className = 'upload-status show error';
-                    statusMessage.textContent = `✗ Error: ${result.detail || 'Upload failed'}`;
-                    progressFill.style.width = '0%';
-                }
-            } catch (error) {
-                statusDiv.className = 'upload-status show error';
-                statusMessage.textContent = `✗ Error: ${error.message}`;
-                progressFill.style.width = '0%';
-            }
-
-        }
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="/static/js/library-app.js?v={{ asset_version }}"></script>
 </body>
 </html>
+

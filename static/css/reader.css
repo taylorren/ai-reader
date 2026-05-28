@@ -1,5 +1,6 @@
         /* Layout - Three Column */
         body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; transition: background-color 0.3s, color 0.3s; }
+        #reader-app { display: flex; width: 100%; height: 100vh; overflow: hidden; }
         
         /* Dark mode */
         body.dark-mode { background: #1a1a1a; color: #e0e0e0; }

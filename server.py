@@ -312,9 +312,15 @@ async def library_view(request: Request):
                 })
     grouped_books = build_grouped_books(books)
     books = [book for group in grouped_books for book in group["books"]]
+    library_asset_version = get_asset_version("static/js/library-app.js")
     return templates.TemplateResponse(
         "library.html",
-        {"request": request, "books": books, "grouped_books": grouped_books},
+        {
+            "request": request,
+            "books": books,
+            "grouped_books": grouped_books,
+            "asset_version": library_asset_version,
+        },
     )
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
@@ -394,7 +400,11 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
 
     target_highlight_id = request.query_params.get("highlight_id", "")
 
-    reader_asset_version = get_asset_version("static/css/reader.css", "static/js/reader.js")
+    reader_asset_version = get_asset_version(
+        "static/css/reader.css",
+        "static/js/reader.js",
+        "static/js/reader-vue-adapter.js",
+    )
 
     return templates.TemplateResponse("reader.html", {
         "request": request,
@@ -589,12 +599,14 @@ async def view_highlights(book_id: str, request: Request):
         # Get book title
         book_title = book_id.replace("_data", "").replace("_", " ")
 
+        highlights_asset_version = get_asset_version("static/js/highlights-app.js")
         return templates.TemplateResponse("highlights.html", {
             "request": request,
             "book_id": book_id,
             "book_title": book_title,
             "highlights": highlights_with_analyses,
-            "stats": stats
+            "stats": stats,
+            "asset_version": highlights_asset_version,
         })
 
     except Exception as e:

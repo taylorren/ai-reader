@@ -132,14 +132,14 @@
     </style>
 </head>
 <body>
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+    <button class="theme-toggle" @click="toggleTheme" title="Toggle theme">
         <span id="theme-icon">🌙</span>
     </button>
     
-    <div class="container">
+    <div id="highlights-app" class="container" data-book-title="{{ book_title }}">
         <div class="header">
             <a href="/" class="back-link">← Back to Library</a>
-            <button class="export-btn" onclick="exportHighlights()">📥 Export</button>
+            <button class="export-btn" @click="exportHighlights">📥 Export</button>
             <h1>{{ book_title }}</h1>
             <div class="book-meta">All your highlights and notes</div>
             <div class="stats">
@@ -164,10 +164,10 @@
         
         {% if highlights %}
         <div class="filter-bar">
-            <button class="filter-btn active" onclick="filterHighlights('all')">全部</button>
-            <button class="filter-btn" onclick="filterHighlights('fact_check')">📋 解释说明</button>
-            <button class="filter-btn" onclick="filterHighlights('discussion')">💡 深入讨论</button>
-            <button class="filter-btn" onclick="filterHighlights('comment')">💬 个人笔记</button>
+            <button class="filter-btn active" @click="filterHighlights('all', $event)">全部</button>
+            <button class="filter-btn" @click="filterHighlights('fact_check', $event)">📋 解释说明</button>
+            <button class="filter-btn" @click="filterHighlights('discussion', $event)">💡 深入讨论</button>
+            <button class="filter-btn" @click="filterHighlights('comment', $event)">💬 个人笔记</button>
         </div>
         
         <div id="highlights-container">
@@ -220,151 +220,9 @@
         </div>
         {% endif %}
     </div>
-    
-    <!-- Markdown parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    
-    <script>
-        // Theme toggle
-        function toggleTheme() {
-            const body = document.body;
-            const icon = document.getElementById('theme-icon');
-            
-            if (body.classList.contains('dark-mode')) {
-                body.classList.remove('dark-mode');
-                icon.textContent = '🌙';
-                localStorage.setItem('reader-theme', 'light');
-            } else {
-                body.classList.add('dark-mode');
-                icon.textContent = '☀️';
-                localStorage.setItem('reader-theme', 'dark');
-            }
-        }
-        
-        // Load saved theme
-        window.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('reader-theme');
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-                document.getElementById('theme-icon').textContent = '☀️';
-            }
-        });
-        
-        // Configure marked for safe rendering
-        marked.setOptions({
-            breaks: true,
-            gfm: true
-        });
-
-        function normalizeSavedAnalysisContent(text) {
-            if (!text) {
-                return '';
-            }
-
-            return text.replace(/^(Using:\s*(?:🏠 Local|☁️ Cloud))(?=\S)/m, '$1\n\n');
-        }
-        
-        // Render markdown for AI responses (not comments)
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.analysis-content').forEach(element => {
-                const type = element.getAttribute('data-type');
-                // Only render markdown for AI responses (fact_check, discussion)
-                if (type === 'fact_check' || type === 'discussion') {
-                    const text = normalizeSavedAnalysisContent(element.textContent);
-                    element.innerHTML = marked.parse(text);
-                }
-            });
-        });
-        
-        let currentFilter = 'all';
-        
-        function filterHighlights(type) {
-            currentFilter = type;
-            const items = document.querySelectorAll('.highlight-item');
-            const buttons = document.querySelectorAll('.filter-btn');
-            
-            // Update button states
-            buttons.forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Filter items
-            items.forEach(item => {
-                if (type === 'all' || item.dataset.type === type) {
-                    item.style.display = 'block';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        }
-        
-        function exportHighlights() {
-            const items = document.querySelectorAll('.highlight-item');
-            const bookTitle = "{{ book_title }}";
-            const exportData = [];
-            
-            // Collect visible highlights
-            items.forEach(item => {
-                if (item.style.display !== 'none') {
-                    const type = item.dataset.type;
-                    const typeLabel = type === 'fact_check' ? '解释说明' : 
-                                     type === 'discussion' ? '深入讨论' : '个人笔记';
-                    const chapter = item.querySelector('.highlight-chapter').textContent;
-                    const text = item.querySelector('.highlight-text').textContent.replace(/^"|"$/g, '');
-                    const analysisContent = item.querySelector('.analysis-content');
-                    const analysis = analysisContent ? analysisContent.textContent.trim() : '';
-                    
-                    exportData.push({
-                        type: typeLabel,
-                        chapter: chapter,
-                        text: text,
-                        analysis: analysis
-                    });
-                }
-            });
-            
-            // Create markdown format
-            let markdown = `# ${bookTitle} - Highlights\n\n`;
-            markdown += `Exported: ${new Date().toLocaleString()}\n`;
-            markdown += `Filter: ${currentFilter === 'all' ? 'All' : currentFilter.replace('_', ' ')}\n`;
-            markdown += `Total: ${exportData.length} highlights\n\n`;
-            markdown += `---\n\n`;
-            
-            exportData.forEach((item, index) => {
-                markdown += `## ${index + 1}. ${item.type}\n\n`;
-                markdown += `**${item.chapter}**\n\n`;
-                markdown += `> ${item.text}\n\n`;
-                if (item.analysis) {
-                    markdown += `### Analysis:\n\n${item.analysis}\n\n`;
-                }
-                markdown += `---\n\n`;
-            });
-            
-            // Check length and warn if too large
-            const charCount = markdown.length;
-            const tokenEstimate = Math.ceil(charCount / 4); // Rough estimate: 1 token ≈ 4 chars
-            
-            if (tokenEstimate > 100000) {
-                if (!confirm(`⚠️ Warning: Export is very large (~${tokenEstimate.toLocaleString()} tokens, ${(charCount/1000).toFixed(1)}K chars).\n\nThis exceeds most AI context limits (e.g., GPT-4: 128K, Claude: 200K).\n\nConsider filtering to reduce size.\n\nContinue export anyway?`)) {
-                    return;
-                }
-            } else if (tokenEstimate > 50000) {
-                if (!confirm(`⚠️ Notice: Export is large (~${tokenEstimate.toLocaleString()} tokens, ${(charCount/1000).toFixed(1)}K chars).\n\nThis may exceed some AI context limits.\n\nContinue export?`)) {
-                    return;
-                }
-            }
-            
-            // Download file
-            const blob = new Blob([markdown], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const filename = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_highlights_${Date.now()}.md`;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="/static/js/highlights-app.js?v={{ asset_version }}"></script>
 </body>
 </html>
+

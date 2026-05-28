@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="/static/css/reader.css?v={{ asset_version }}">
 </head>
 <body>
+<div id="reader-app">
 
     <!-- Left Sidebar - TOC -->
     <div id="sidebar">
@@ -37,7 +38,7 @@
             {% for item in items %}
                 <li class="toc-item">
                     {% set is_active = current_chapter.href == item.file_href %}
-                    <a href="#" onclick="findAndGo('{{ item.file_href }}')"
+                    <a href="#" @click.prevent="findAndGo('{{ item.file_href }}')"
                        class="toc-link {% if is_active %}active{% endif %}">
                         {{ item.title }}
                     </a>
@@ -81,14 +82,14 @@
                 {% endif %}
                 
                 <div class="settings-container">
-                    <button class="settings-btn" onclick="toggleSettings(event)" title="Reading Settings">⚙️</button>
+                    <button class="settings-btn" @click="toggleSettings($event)" title="Reading Settings">⚙️</button>
                     <div class="settings-dropdown" id="settings-dropdown">
                         <div class="settings-section">
                             <div class="settings-switch-row">
                                 <label class="settings-label inline">AI Provider</label>
                                 <div class="provider-toggle">
                                     <span class="toggle-label">Local</span>
-                                    <div class="toggle-switch" id="provider-toggle" onclick="toggleAIProvider()">
+                                    <div class="toggle-switch" id="provider-toggle" @click="toggleAIProvider">
                                         <div class="toggle-switch-slider"></div>
                                     </div>
                                     <span class="toggle-label">Cloud</span>
@@ -101,7 +102,7 @@
                                 <label class="settings-label inline">Theme</label>
                                 <div class="provider-toggle">
                                     <span class="toggle-label">Light</span>
-                                    <div class="toggle-switch" id="theme-toggle" onclick="toggleTheme()">
+                                    <div class="toggle-switch" id="theme-toggle" @click="toggleTheme">
                                         <div class="toggle-switch-slider"></div>
                                     </div>
                                     <span class="toggle-label">Dark</span>
@@ -114,7 +115,7 @@
                                 <label class="settings-label inline">Paper Mode</label>
                                 <div class="provider-toggle">
                                     <span class="toggle-label">Off</span>
-                                    <div class="toggle-switch" id="paper-mode-toggle" onclick="togglePaperMode()">
+                                    <div class="toggle-switch" id="paper-mode-toggle" @click="togglePaperMode">
                                         <div class="toggle-switch-slider"></div>
                                     </div>
                                     <span class="toggle-label">On</span>
@@ -125,26 +126,30 @@
                         <div class="settings-section">
                             <label class="settings-label">Font Family</label>
                             <div class="settings-options">
-                                <button class="settings-option active" onclick="setFont('Georgia, serif')" data-font="georgia">Georgia</button>
-                                <button class="settings-option" onclick="setFont('Times New Roman, serif')" data-font="times">Times</button>
-                                <button class="settings-option" onclick="setFont('-apple-system, sans-serif')" data-font="sans">Sans</button>
-                                <button class="settings-option" onclick="setFont('Arial, sans-serif')" data-font="arial">Arial</button>
-                                <button class="settings-option" onclick="setFont('Verdana, sans-serif')" data-font="verdana">Verdana</button>
-                                <button class="settings-option" onclick="setFont('Microsoft YaHei, sans-serif')" data-font="yahei">微软雅黑</button>
-                                <button class="settings-option" onclick="setFont('SimSun, serif')" data-font="simsun">宋体</button>
-                                <button class="settings-option" onclick="setFont('Consolas, monospace')" data-font="mono">Mono</button>
+                                <button class="settings-option active" @click="setFont('Georgia, serif', $event)" data-font="georgia">Georgia</button>
+                                <button class="settings-option" @click="setFont('Times New Roman, serif', $event)" data-font="times">Times</button>
+                                <button class="settings-option" @click="setFont('-apple-system, sans-serif', $event)" data-font="sans">Sans</button>
+                                <button class="settings-option" @click="setFont('Arial, sans-serif', $event)" data-font="arial">Arial</button>
+                                <button class="settings-option" @click="setFont('Verdana, sans-serif', $event)" data-font="verdana">Verdana</button>
+                                <button class="settings-option" @click="setFont('Microsoft YaHei, sans-serif', $event)" data-font="yahei">微软雅黑</button>
+                                <button class="settings-option" @click="setFont('SimSun, serif', $event)" data-font="simsun">宋体</button>
+                                <button class="settings-option" @click="setFont('Consolas, monospace', $event)" data-font="mono">Mono</button>
                             </div>
                         </div>
                         
                         <div class="settings-section">
                             <label class="settings-label">Font Size</label>
+<<<<<<< Updated upstream
                             <input type="range" class="settings-slider" min="14" max="40" value="18" step="2" oninput="setFontSize(this.value)">
+=======
+                            <input type="range" class="settings-slider" min="14" max="40" value="18" step="1" @input="setFontSize($event.target.value)">
+>>>>>>> Stashed changes
                             <div class="settings-value" id="font-size-value">18px</div>
                         </div>
                         
                         <div class="settings-section">
                             <label class="settings-label">Line Height</label>
-                            <input type="range" class="settings-slider" min="1.4" max="2.2" value="1.8" step="0.1" oninput="setLineHeight(this.value)">
+                            <input type="range" class="settings-slider" min="1.4" max="2.2" value="1.8" step="0.1" @input="setLineHeight($event.target.value)">
                             <div class="settings-value" id="line-height-value">1.8</div>
                         </div>
                     </div>
@@ -179,7 +184,7 @@
     <!-- Right Panel - AI Analysis -->
     <div id="ai-panel" class="hidden">
         <div class="panel-header">
-            <span class="panel-close" onclick="closePanel()">&times;</span>
+            <span class="panel-close" @click="closePanel">&times;</span>
             <h3 class="panel-title" id="panel-title">AI 分析</h3>
         </div>
         
@@ -207,28 +212,28 @@
         </div>
         
         <div class="panel-actions" id="panel-actions">
-            <button class="btn btn-primary" id="save-btn" onclick="saveAnalysis()" disabled>
+            <button class="btn btn-primary" id="save-btn" @click="saveAnalysis" disabled>
                 保存到数据库
             </button>
-            <button class="btn btn-secondary" id="delete-highlight-btn" onclick="deleteCurrentHighlight()" style="display: none; background: #f44336; color: white;">
+            <button class="btn btn-secondary" id="delete-highlight-btn" @click="deleteCurrentHighlight" style="display: none; background: #f44336; color: white;">
                 删除高亮
             </button>
-            <button class="btn btn-secondary" onclick="closePanel()">
+            <button class="btn btn-secondary" @click="closePanel">
                 关闭
             </button>
         </div>
         
         <div class="panel-actions" id="comment-actions" style="display: none;">
-            <button class="btn btn-primary" id="save-comment-btn" onclick="saveComment()">
+            <button class="btn btn-primary" id="save-comment-btn" @click="saveComment">
                 保存笔记
             </button>
-            <button class="btn btn-primary" id="update-comment-btn" onclick="updateComment()" style="display: none;">
+            <button class="btn btn-primary" id="update-comment-btn" @click="updateComment" style="display: none;">
                 更新笔记
             </button>
-            <button class="btn btn-secondary" id="delete-comment-btn" onclick="deleteCurrentHighlight()" style="display: none; background: #f44336; color: white;">
+            <button class="btn btn-secondary" id="delete-comment-btn" @click="deleteCurrentHighlight" style="display: none; background: #f44336; color: white;">
                 删除高亮
             </button>
-            <button class="btn btn-secondary" onclick="closePanel()">
+            <button class="btn btn-secondary" @click="closePanel">
                 取消
             </button>
         </div>
@@ -236,31 +241,31 @@
 
     <!-- Context Menu -->
     <div id="context-menu">
-        <div class="context-menu-item" onclick="handleContextAction('fact_check')">
+        <div class="context-menu-item" @click="handleContextAction('fact_check')">
             解释说明
         </div>
-        <div class="context-menu-item" onclick="handleContextAction('discussion')">
+        <div class="context-menu-item" @click="handleContextAction('discussion')">
             深入讨论
         </div>
-        <div class="context-menu-item" onclick="handleContextAction('comment')">
+        <div class="context-menu-item" @click="handleContextAction('comment')">
             添加笔记
         </div>
         <div class="context-menu-separator"></div>
-        <div class="context-menu-item" onclick="handleContextAction('copy_search')">
+        <div class="context-menu-item" @click="handleContextAction('copy_search')">
             复制文本用于外部搜索
         </div>
     </div>
 
     <!-- Toggle Panel Button (when panel is hidden) -->
-    <button class="toggle-panel-btn" id="toggle-panel-btn" onclick="togglePanel()" title="Open AI Panel">
+    <button class="toggle-panel-btn" id="toggle-panel-btn" @click="togglePanel" title="Open AI Panel">
         AI
     </button>
     
     <!-- Modal for internal links -->
-    <div class="modal-overlay" id="link-modal" onclick="closeModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-overlay" id="link-modal" @click="closeModal($event)">
+        <div class="modal-content" @click.stop>
             <div class="modal-header">
-                <span class="modal-close" onclick="closeModal()">&times;</span>
+                <span class="modal-close" @click="closeModal()">&times;</span>
                 <h3 class="modal-title" id="modal-title">Reference</h3>
             </div>
             <div class="modal-body" id="modal-body">
@@ -270,7 +275,10 @@
     </div>
 
     <!-- Markdown parser -->
+</div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <script src="/static/js/reader.js?v={{ asset_version }}"></script>
+    <script src="/static/js/reader-vue-adapter.js?v={{ asset_version }}"></script>
 </body>
 </html>
