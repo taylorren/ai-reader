@@ -518,6 +518,14 @@ window.PanelMixin = {
                 const data = await response.json();
                 this.serverProviderOverride = data.provider_override;
                 this.serverDefaultProvider = data.default_provider || 'ollama_cloud';
+                // Update toggle switch visual state
+                this.$nextTick(() => {
+                    const toggle = document.getElementById('provider-toggle');
+                    if (toggle) {
+                        const effectiveProvider = this.aiSettings.provider;
+                        toggle.classList.toggle('active', effectiveProvider === 'ollama_cloud');
+                    }
+                });
             } catch (error) {
                 console.error('Failed to load server settings:', error);
             }
@@ -533,6 +541,11 @@ window.PanelMixin = {
                 });
                 const data = await response.json();
                 this.serverProviderOverride = data.provider_override;
+                // Update toggle switch visual state
+                const toggle = document.getElementById('provider-toggle');
+                if (toggle) {
+                    toggle.classList.toggle('active', data.provider_override === 'ollama_cloud');
+                }
             } catch (error) {
                 console.error('Failed to toggle AI provider:', error);
             }

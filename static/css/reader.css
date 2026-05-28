@@ -240,7 +240,7 @@
         .settings-container { position: relative; display: inline-block; }
         .settings-btn { background: none; border: none; color: #666; font-size: 1.2em; cursor: pointer; padding: 8px; margin-left: 15px; transition: color 0.2s; }
         .settings-btn:hover { color: #333; }
-        .settings-dropdown { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px; min-width: 280px; display: none; z-index: 1000; margin-top: 5px; }
+        .settings-dropdown { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px; min-width: 280px; display: none; z-index: 1200; margin-top: 5px; }
         .settings-dropdown.show { display: block; }
         .settings-section { margin-bottom: 15px; }
         .settings-section:last-child { margin-bottom: 0; }
