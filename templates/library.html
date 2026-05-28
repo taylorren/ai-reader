@@ -246,7 +246,7 @@
                     </div>
                 </div>
                 <div class="book-card-lower">
-                    <span class="book-word-count" title="Estimated from the parsed book text">~{{ book.estimated_word_count_display }}</span>
+                    <span class="book-word-count" title="Estimated from the parsed book text">~{{ book.estimated_word_count_display }} · {{ book.reading_time_display }}</span>
                     {% if book.progress is not none %}
                     <div class="progress-summary">
                         <div class="progress-bar-container">

@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup, Comment
 # exists but has no <nav epub:type="toc"> element (non-standard EPUBs).
 # The page-list case already handles missing nodes gracefully; mirror that
 # behaviour for the toc case.
-_original_parse_nav = epub.EpubReader._parse_nav
+_original_parse_nav = epub.EpubReader._parse_nav  # type: ignore[attr-defined]
 
 def _patched_parse_nav(self, data, base_path, navtype="toc"):
     if navtype == "toc":
@@ -28,7 +28,7 @@ def _patched_parse_nav(self, data, base_path, navtype="toc"):
             return
     _original_parse_nav(self, data, base_path, navtype)
 
-epub.EpubReader._parse_nav = _patched_parse_nav
+epub.EpubReader._parse_nav = _patched_parse_nav  # type: ignore[attr-defined]
 
 # --- Data structures ---
 
@@ -58,7 +58,7 @@ class TOCEntry:
 
 @dataclass
 class BookMetadata:
-    """Metadata"""
+    """Bibliographic metadata extracted from the EPUB."""
     title: str
     language: str
     authors: List[str] = field(default_factory=list)
@@ -71,7 +71,11 @@ class BookMetadata:
 
 @dataclass
 class Book:
-    """The Master Object to be pickled."""
+    """The processed EPUB book ready for serving via the web reader.
+
+    Contains all extracted content, metadata, images, and navigation structure.
+    Serialized to disk as a pickle file for fast loading.
+    """
     metadata: BookMetadata
     spine: List[ChapterContent]  # The actual content (linear files)
     toc: List[TOCEntry]          # The navigation tree
@@ -87,6 +91,11 @@ def rewrite_embedded_image_paths(soup: BeautifulSoup, image_map: Dict[str, str])
     """Rewrite both HTML and SVG image references to extracted local paths."""
 
     def resolve_image_path(raw_ref: str) -> Optional[str]:
+        """Resolve an image src/href to its extracted local path.
+
+        Handles query strings, fragments, URL encoding, and both full-path
+        and basename-only lookups in the image map.
+        """
         if not raw_ref:
             return None
 
@@ -111,7 +120,6 @@ def rewrite_embedded_image_paths(soup: BeautifulSoup, image_map: Dict[str, str])
             if resolved_path:
                 svg_image[attr_name] = resolved_path
                 break
-    version: str = "3.0"
 
 
 # --- Utilities ---
@@ -200,10 +208,12 @@ def extract_metadata_robust(epub_book) -> BookMetadata:
     """Extract metadata while handling both single and list-valued fields."""
 
     def get_list(key):
+        """Extract a list-valued DC metadata field."""
         data = epub_book.get_metadata('DC', key)
         return [x[0] for x in data] if data else []
 
     def get_one(key):
+        """Extract a single-valued DC metadata field, or None if absent."""
         data = epub_book.get_metadata('DC', key)
         return data[0][0] if data else None
 
