@@ -26,6 +26,10 @@ createApp({
 
             // Settings dropdown
             showSettingsDropdown: false,
+
+            // SPA chapter navigation
+            loadingChapter: false,
+            totalChapters: 0,
         };
     },
 
@@ -41,6 +45,7 @@ createApp({
             } catch (e) {
                 console.warn('Failed to parse spine map:', e);
             }
+            this.totalChapters = Number(readerDataEl.dataset.totalChapters || Object.keys(this.spineMap).length);
         }
 
         this.initializeProviderUI();        // PanelMixin
@@ -52,6 +57,14 @@ createApp({
         this.setupContextMenu();            // PanelMixin
         this.setupPanelListeners();         // PanelMixin
         this.setupLinkInterceptor();
+
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.chapterIndex !== undefined && e.state.bookId === this.bookId) {
+                this.saveProgress().then(() => {
+                    this.loadChapterContent(e.state.chapterIndex);
+                });
+            }
+        });
 
         this.$nextTick(() => {
             const activeLink = document.querySelector('.toc-link.active');
@@ -83,8 +96,188 @@ createApp({
             const cleanFile = filename.split('#')[0];
             const idx = this.spineMap[cleanFile];
             if (idx !== undefined) {
-                window.location.href = '/read/' + this.bookId + '/' + idx;
+                this.navigateToChapter(idx);
             }
+        },
+
+        // ---- SPA Chapter Navigation ----
+
+        async navigateToChapter(chapterIndex) {
+            if (this.loadingChapter) return;
+            if (chapterIndex === this.chapterIndex) return;
+            if (chapterIndex < 0 || chapterIndex >= this.totalChapters) return;
+
+            this.loadingChapter = true;
+
+            // Save scroll progress of current chapter before leaving
+            await this.saveProgress();
+
+            // Update browser URL and history
+            const url = `/read/${this.bookId}/${chapterIndex}`;
+            history.pushState({ chapterIndex, bookId: this.bookId }, '', url);
+
+            await this.loadChapterContent(chapterIndex);
+
+            this.loadingChapter = false;
+        },
+
+        async loadChapterContent(chapterIndex) {
+            const url = `/read/${this.bookId}/${chapterIndex}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Extract book content from fetched page
+                const newContent = doc.querySelector('#book-content');
+                if (!newContent) throw new Error('Content element not found');
+
+                // Fade out
+                const bookContent = document.getElementById('book-content');
+                bookContent.style.opacity = '0';
+
+                // Wait for fade-out, then swap content
+                await new Promise(r => setTimeout(r, 100));
+
+                bookContent.innerHTML = newContent.innerHTML;
+                this.chapterIndex = chapterIndex;
+                this.targetHighlightId = '';
+                this.savedScroll = 0;
+                this.currentScrollPosition = 0;
+
+                // Scroll main to top
+                const mainEl = document.getElementById('main');
+                if (mainEl) mainEl.scrollTop = 0;
+
+                // Reapply saved reading settings to new content
+                this.reapplySettings();
+
+                // Update nav buttons and chapter counter
+                this.updateNavAndTOC(chapterIndex);
+
+                // Load highlights for new chapter
+                await this.loadSavedHighlights();
+
+                // Fade in
+                bookContent.style.opacity = '1';
+
+                // Re-render MathJax for new content
+                if (window.MathJax && MathJax.typesetPromise) {
+                    try { await MathJax.typesetPromise([bookContent]); } catch (e) { /* ignore */ }
+                }
+
+            } catch (error) {
+                console.error('Failed to load chapter:', error);
+                // Fallback: full page navigation
+                window.location.href = url;
+            }
+        },
+
+        updateNavAndTOC(chapterIndex) {
+            const total = this.totalChapters;
+            const counterText = `第 ${chapterIndex + 1} / ${total} 节`;
+
+            // Update chapter counter text in both sticky top nav and bottom nav
+            document.querySelectorAll('.chapter-nav span').forEach(span => {
+                if (span.textContent.includes('第 ') && span.textContent.includes(' 节')) {
+                    span.textContent = counterText;
+                }
+            });
+
+            // Update prev/next nav buttons
+            const updateNav = (navEl) => {
+                if (!navEl) return;
+                const anchors = navEl.querySelectorAll('a.nav-btn, span.nav-btn');
+                if (anchors.length < 2) return;
+
+                // Prev button (first anchor/span)
+                const prevEl = anchors[0];
+                if (chapterIndex > 0) {
+                    if (prevEl.tagName === 'SPAN') {
+                        // Replace span with anchor
+                        const a = document.createElement('a');
+                        a.href = `/read/${this.bookId}/${chapterIndex - 1}`;
+                        a.className = 'nav-btn';
+                        a.textContent = '← 上一章';
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            this.navigateToChapter(chapterIndex - 1);
+                        });
+                        prevEl.replaceWith(a);
+                    } else {
+                        prevEl.href = `/read/${this.bookId}/${chapterIndex - 1}`;
+                    }
+                } else {
+                    if (prevEl.tagName === 'A') {
+                        const span = document.createElement('span');
+                        span.className = 'nav-btn disabled';
+                        span.textContent = '← 上一章';
+                        prevEl.replaceWith(span);
+                    }
+                }
+
+                // Next button (last anchor/span)
+                const nextEl = anchors[anchors.length - 1];
+                if (chapterIndex < total - 1) {
+                    if (nextEl.tagName === 'SPAN') {
+                        const a = document.createElement('a');
+                        a.href = `/read/${this.bookId}/${chapterIndex + 1}`;
+                        a.className = 'nav-btn';
+                        a.textContent = '下一章 →';
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            this.navigateToChapter(chapterIndex + 1);
+                        });
+                        nextEl.replaceWith(a);
+                    } else {
+                        nextEl.href = `/read/${this.bookId}/${chapterIndex + 1}`;
+                    }
+                } else {
+                    if (nextEl.tagName === 'A') {
+                        const span = document.createElement('span');
+                        span.className = 'nav-btn disabled';
+                        span.textContent = '下一章 →';
+                        nextEl.replaceWith(span);
+                    }
+                }
+            };
+
+            document.querySelectorAll('.chapter-nav').forEach(updateNav);
+
+            // Update TOC active link
+            const href = this.getChapterHref(chapterIndex);
+            document.querySelectorAll('.toc-link').forEach(link => {
+                const isActive = link.dataset.fileHref === href;
+                link.classList.toggle('active', isActive);
+            });
+
+            // Scroll TOC to active link
+            const activeLink = document.querySelector('.toc-link.active');
+            if (activeLink) {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.scrollTop = activeLink.offsetTop - (sidebar.clientHeight / 2) + (activeLink.offsetHeight / 2);
+            }
+        },
+
+        getChapterHref(chapterIndex) {
+            return Object.entries(this.spineMap).find(([, idx]) => idx === chapterIndex)?.[0] || '';
+        },
+
+        reapplySettings() {
+            // Reapply font, size, line-height, theme from localStorage to the new content
+            const bookContent = document.getElementById('book-content');
+            if (!bookContent) return;
+
+            const savedFont = localStorage.getItem('reader-font');
+            const savedSize = localStorage.getItem('reader-font-size');
+            const savedHeight = localStorage.getItem('reader-line-height');
+
+            if (savedFont) bookContent.style.fontFamily = savedFont;
+            if (savedSize) bookContent.style.fontSize = savedSize + 'px';
+            if (savedHeight) bookContent.style.lineHeight = savedHeight;
         },
 
         escapeSelectorFragment(value) {
@@ -295,15 +488,18 @@ createApp({
             window.addEventListener('beforeunload', () => this.saveProgress());
             window.addEventListener('pagehide', () => this.saveProgress());
 
+            // Nav button click → SPA navigation
             document.querySelectorAll('.nav-btn:not(.disabled)').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    this.saveProgress().then(() => {
-                        window.location.href = btn.href;
-                    });
+                    const match = btn.href.match(/\/read\/[^/]+\/(\d+)/);
+                    if (match) {
+                        this.navigateToChapter(Number(match[1]));
+                    }
                 });
             });
 
+            // Home link → full navigation (different page)
             const homeLink = document.querySelector('.nav-home');
             if (homeLink) {
                 homeLink.addEventListener('click', (e) => {
@@ -469,16 +665,14 @@ createApp({
                     }
                     // Panel / context-menu ESC is handled by PanelMixin.setupPanelListeners()
                 } else if (e.key === 'ArrowLeft') {
-                    const prevBtn = document.querySelector('.chapter-nav a.nav-btn:first-child:not(.disabled)');
-                    if (prevBtn) {
+                    if (this.chapterIndex > 0) {
                         e.preventDefault();
-                        window.location.href = prevBtn.href;
+                        this.navigateToChapter(this.chapterIndex - 1);
                     }
                 } else if (e.key === 'ArrowRight') {
-                    const nextBtn = document.querySelector('.chapter-nav a.nav-btn:last-child:not(.disabled)');
-                    if (nextBtn) {
+                    if (this.chapterIndex < this.totalChapters - 1) {
                         e.preventDefault();
-                        window.location.href = nextBtn.href;
+                        this.navigateToChapter(this.chapterIndex + 1);
                     }
                 }
             });

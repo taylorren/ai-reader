@@ -39,7 +39,8 @@
                 <li class="toc-item">
                     {% set is_active = current_chapter.href == item.file_href %}
                     <a href="#" @click.prevent="findAndGo('{{ item.file_href }}')"
-                       class="toc-link {% if is_active %}active{% endif %}">
+                       class="toc-link {% if is_active %}active{% endif %}"
+                       data-file-href="{{ item.file_href }}">
                         {{ item.title }}
                     </a>
                     {% if item.children %}
@@ -61,6 +62,7 @@
              data-saved-scroll="{{ saved_scroll }}"
                data-target-highlight-id="{{ target_highlight_id }}"
              data-spine-map='{{ spine_map | tojson }}'
+             data-total-chapters="{{ book.spine|length }}"
              style="display:none;"></div>
         <div class="content-container">
             <!-- Top Navigation (Sticky) -->
@@ -178,7 +180,7 @@
     </div>
 
     <!-- Right Panel - AI Analysis -->
-    <div id="ai-panel" v-show="panelOpen">
+    <div id="ai-panel" v-show="panelOpen" style="display: none;">
         <div class="panel-header">
             <span class="panel-close" @click="closePanel">&times;</span>
             <h3 class="panel-title">[[ panelTitle ]]</h3>
@@ -261,7 +263,7 @@
     </div>
 
     <!-- Confirm Dialog -->
-    <div class="confirm-overlay" v-show="confirmVisible" @click.self="onConfirmNo">
+    <div class="confirm-overlay" v-show="confirmVisible" style="display: none;" @click.self="onConfirmNo">
         <div class="confirm-box">
             <p>[[ confirmMessage ]]</p>
             <div class="confirm-actions">
