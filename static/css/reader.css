@@ -166,6 +166,7 @@
         .content-container { max-width: 700px; margin: 0 auto; padding: 60px 40px; line-height: 1.8; font-size: 1.15em; color: #212529; }
 
         /* Content Styling */
+        .book-content { transition: opacity 0.12s ease; }
         .book-content img { max-width: 100%; height: auto; display: block; margin: 20px auto; }
         .book-content h1, .book-content h2, .book-content h3 { font-family: -apple-system, sans-serif; margin-top: 1.5em; color: #333; }
         .book-content p { margin-bottom: 1.5em; text-align: justify; }
