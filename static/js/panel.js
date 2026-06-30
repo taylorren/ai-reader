@@ -47,6 +47,15 @@ window.PanelMixin = {
             confirmVisible: false,
             confirmMessage: '',
             confirmResolve: null,
+
+            // Interactive Discussion
+            conversationHistory: [],
+            discussionInput: '',
+            discussionLoading: false,
+            conversationWarnings: [],
+            showDiscussionActions: false,
+            showSaveDiscussionBtn: false,
+            discussionSummary: '',
         };
     },
 
@@ -118,6 +127,13 @@ window.PanelMixin = {
             this.showPanelActions = true;
             this.showCommentActions = false;
             this.showDeleteCommentBtn = false;
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
+            this.conversationHistory = [];
+            this.discussionInput = '';
+            this.discussionLoading = false;
+            this.conversationWarnings = [];
+            this.discussionSummary = '';
         },
 
         togglePanel() {
@@ -229,6 +245,23 @@ window.PanelMixin = {
             this.panelAnalysisTypeLabel = actionType === 'fact_check' ? '解释说明' : '深入讨论';
         },
 
+        _setupDiscussionPanel() {
+            this.panelMode = 'discussion';
+            this.showPanelActions = false;
+            this.showCommentActions = false;
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
+            this.panelTitle = '💡 深入讨论 (交互式)';
+            this.conversationHistory = [];
+            this.discussionInput = '';
+            this.conversationWarnings = [];
+            this.discussionSummary = '';
+            this.$nextTick(() => {
+                this.$refs.discussionTextarea?.focus();
+                this.scrollToBottom();
+            });
+        },
+
         // ================================================================
         //  Context action dispatcher
         // ================================================================
@@ -252,7 +285,14 @@ window.PanelMixin = {
                 return;
             }
 
-            // AI actions (fact_check, discussion)
+            // Interactive discussion
+            if (actionType === 'discussion') {
+                this._setupDiscussionPanel();
+                await this.startInteractiveDiscussion();
+                return;
+            }
+
+            // Traditional AI actions (fact_check only now)
             this._setupAnalysisPanel(actionType);
 
             const providerLabel = this.aiSettings.provider === 'ollama' ? 'Local' : 'Cloud';
@@ -280,6 +320,7 @@ window.PanelMixin = {
                         `<div class="provider-badge" style="font-size: 0.85em; color: #999; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;">Using: ${providerUsed}</div>` +
                         marked.parse(aiData.response);
                     this.saveBtnDisabled = false;
+                    this._renderMathInPanel();
                 } else {
                     this.panelAnalysisHtml = '分析失败，请重试。';
                 }
@@ -328,6 +369,7 @@ window.PanelMixin = {
                         this.normalizeSavedAnalysisContent(analysis.response)
                     );
                     this.showPanelActions = true;
+                    this._renderMathInPanel();
                     this.showCommentActions = false;
                     this.showSaveBtn = false;
                     this.showDeleteBtn = true;
@@ -549,6 +591,231 @@ window.PanelMixin = {
             } catch (error) {
                 console.error('Failed to toggle AI provider:', error);
             }
+        },
+
+        // ================================================================
+        //  Interactive Discussion
+        // ================================================================
+
+        async startInteractiveDiscussion() {
+            this.discussionLoading = true;
+            this.conversationHistory = [];
+            this.conversationWarnings = [];
+            this.discussionSummary = '';
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
+
+            try {
+                const res = await fetch('/api/ai/discussion/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: 0,
+                        selected_text: this.selectedText,
+                        context: this.selectedContext,
+                        provider: this.aiSettings.provider,
+                    }),
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    this.conversationHistory = data.conversation_history || [];
+                    this._renderMathInPanel();
+                    this.$nextTick(() => this.scrollToBottom());
+                } else {
+                    this.conversationHistory = [{
+                        role: 'assistant',
+                        content: '抱歉，启动讨论时出现了问题。请重试。'
+                    }];
+                }
+            } catch (error) {
+                console.error('Discussion start error:', error);
+                this.conversationHistory = [{
+                    role: 'assistant',
+                    content: '发生错误: ' + error.message
+                }];
+            } finally {
+                this.discussionLoading = false;
+                this.$nextTick(() => {
+                    this.$refs.discussionTextarea?.focus();
+                });
+            }
+        },
+
+        async sendDiscussionMessage() {
+            const message = this.discussionInput.trim();
+            if (!message || this.discussionLoading) return;
+
+            // Add user message to conversation immediately
+            this.conversationHistory.push({ role: 'user', content: message });
+            this.discussionInput = '';
+            this.discussionLoading = true;
+
+            this.$nextTick(() => this.scrollToBottom());
+
+            try {
+                const res = await fetch('/api/ai/discussion/continue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: 0,
+                        selected_text: this.selectedText,
+                        conversation_history: this.conversationHistory,
+                        user_message: message,
+                        provider: this.aiSettings.provider,
+                    }),
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    this.conversationHistory = data.conversation_history || [];
+                    this.conversationWarnings = data.warnings || [];
+                    this._renderMathInPanel();
+                    this.$nextTick(() => this.scrollToBottom());
+                } else {
+                    this.conversationHistory.push({
+                        role: 'assistant',
+                        content: '抱歉，回复时出现了问题。请重试。'
+                    });
+                }
+            } catch (error) {
+                console.error('Discussion continue error:', error);
+                this.conversationHistory.push({
+                    role: 'assistant',
+                    content: '发生错误: ' + error.message
+                });
+            } finally {
+                this.discussionLoading = false;
+                this.$nextTick(() => {
+                    this.$refs.discussionTextarea?.focus();
+                });
+            }
+        },
+
+        async summarizeDiscussion() {
+            if (this.discussionLoading) return;
+            this.discussionLoading = true;
+
+            try {
+                const res = await fetch('/api/ai/discussion/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: 0,
+                        selected_text: this.selectedText,
+                        conversation_history: this.conversationHistory,
+                        provider: this.aiSettings.provider,
+                    }),
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    this.discussionSummary = data.summary;
+                    this.showDiscussionActions = true;
+                    this.showSaveDiscussionBtn = true;
+                    this.saveBtnDisabled = false;
+                    this.saveBtnText = '保存总结';
+                    this.showToast('对话总结完成', 'success');
+
+                    // Show summary as a new message in the conversation
+                    this.conversationHistory.push({
+                        role: 'assistant',
+                        content: '**📝 对话总结**\n\n' + data.summary
+                    });
+                    this._renderMathInPanel();
+                    this.$nextTick(() => this.scrollToBottom());
+                } else {
+                    this.showToast('总结失败，请重试', 'error');
+                }
+            } catch (error) {
+                console.error('Discussion summarize error:', error);
+                this.showToast('发生错误: ' + error.message, 'error');
+            } finally {
+                this.discussionLoading = false;
+            }
+        },
+
+        async saveDiscussionSummary() {
+            if (!this.discussionSummary) {
+                this.showToast('没有可保存的总结', 'info');
+                return;
+            }
+
+            this.saveBtnDisabled = true;
+            this.saveBtnText = '保存中...';
+
+            try {
+                const highlightRes = await fetch('/api/highlight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        book_id: this.bookId,
+                        chapter_index: this.chapterIndex,
+                        selected_text: this.selectedText,
+                        context_before: this.selectedContext.substring(0, 200),
+                        context_after: this.selectedContext.substring(this.selectedContext.length - 200),
+                    }),
+                });
+                const highlightData = await highlightRes.json();
+                this.currentHighlightId = highlightData.highlight_id;
+
+                const saveRes = await fetch('/api/ai/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        highlight_id: this.currentHighlightId,
+                        analysis_type: 'discussion',
+                        prompt: this.selectedText,
+                        response: this.discussionSummary,
+                    }),
+                });
+                const saveData = await saveRes.json();
+
+                if (saveData.status === 'success') {
+                    this.currentAnalysisId = saveData.analysis_id;
+                    this.showSaved = true;
+                    this.saveBtnText = '已保存';
+                    this.showToast('讨论总结已保存', 'success');
+                    await this.loadSavedHighlights();
+                } else {
+                    this.saveBtnDisabled = false;
+                    this.saveBtnText = '保存失败';
+                    setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
+                }
+            } catch (error) {
+                console.error('Save discussion error:', error);
+                this.saveBtnDisabled = false;
+                this.saveBtnText = '保存失败';
+                setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
+            }
+        },
+
+        clearDiscussionInput() {
+            this.discussionInput = '';
+            this.$refs.discussionTextarea?.focus();
+        },
+
+        formatMessage(content) {
+            if (!content) return '';
+            return marked.parse(content);
+        },
+
+        scrollToBottom() {
+            const container = document.querySelector('#discussion-chat-area .conversation-container');
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        },
+
+        _renderMathInPanel() {
+            this.$nextTick(() => {
+                if (window.MathJax && MathJax.typesetPromise) {
+                    const panel = document.getElementById('ai-panel');
+                    if (panel) {
+                        MathJax.typesetPromise([panel]).catch(() => {});
+                    }
+                }
+            });
         },
 
         // ================================================================

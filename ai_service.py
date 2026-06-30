@@ -4,7 +4,7 @@ Supports Ollama local and Ollama Cloud providers.
 """
 import os
 import httpx
-from typing import Optional
+from typing import Optional, List, Dict
 
 
 class AIService:
@@ -99,14 +99,92 @@ class AIService:
 
         return await self._call_api(prompt, provider=provider, ollama_model=ollama_model)
     
+    async def discuss_interactive(self, text: str, provider: str = "ollama", 
+                                  ollama_model: Optional[str] = None) -> str:
+        """Generate a brief overview for interactive discussion starter."""
+        prompt = f"""请对以下文本提供一个简要的概览分析（1-2段），突出关键论点、主要观点和值得深入探讨的方面：
+
+{text}
+
+要求：
+- 保持简洁，1-2段即可
+- 突出最关键的观点和值得讨论的方面
+- 不要提供详细分析，留待后续讨论
+- 语言保持学术性但易懂
+- 结束时可以提出1-2个引导性问题，激发用户思考"""
+        
+        return await self._call_api(prompt, provider=provider, ollama_model=ollama_model)
+    
+    async def continue_discussion(self, user_message: str, conversation_history: List[Dict[str, str]],
+                                  provider: str = "ollama", 
+                                  ollama_model: Optional[str] = None) -> str:
+        """Continue an interactive discussion with user follow-up question."""
+        # The conversation history already includes the context
+        # We just need to add the user message and get AI response
+        return await self._call_api(
+            prompt=user_message,
+            provider=provider,
+            ollama_model=ollama_model,
+            conversation_history=conversation_history
+        )
+    
+    async def summarize_conversation(self, text: str, conversation_history: List[Dict[str, str]], 
+                                     provider: str = "ollama", 
+                                     ollama_model: Optional[str] = None) -> str:
+        """Summarize a conversation history into comprehensive analysis."""
+        # Add the summarization instruction as the final user message
+        summarization_prompt = """基于我们的整个对话历史，请创建一个综合性的学术分析总结。
+
+请创建综合总结，涵盖以下维度：
+**1. 核心论点与观点总结**
+- 从对话中提炼出的核心论点
+- 主要观点的发展和演变
+
+**2. 深入分析与见解**
+- 基于对话的深入分析
+- 学术视角和理论框架
+
+**3. 批判性思考总结**
+- 对话中提出的主要批判点
+- 逻辑漏洞和假设讨论
+
+**4. 结论与启示**
+- 主要结论
+- 对进一步研究和思考的启示
+
+要求：
+- 保持学术严谨性
+- 基于整个对话历史进行综合
+- 突出最有价值的见解
+- 结构清晰，层次分明"""
+        
+        # Create a new conversation history that includes the summarization prompt
+        summary_conversation = conversation_history.copy()
+        summary_conversation.append({"role": "user", "content": summarization_prompt})
+        
+        # Call API with the full conversation history including summarization prompt
+        return await self._call_api(
+            prompt=summarization_prompt,
+            provider=provider,
+            ollama_model=ollama_model,
+            conversation_history=summary_conversation
+        )
+    
     async def _call_api(self, prompt: str, provider: str = "ollama",
-                        ollama_model: Optional[str] = None) -> str:
+                        ollama_model: Optional[str] = None, 
+                        conversation_history: Optional[list] = None) -> str:
         """Make API call to OpenAI-compatible endpoint."""
         provider = (provider or "ollama").lower()
         if provider not in ("ollama", "ollama_cloud"):
             return "不支持的AI提供商。"
 
         base_url, api_key, model = self._get_connection_params(provider, ollama_model)
+        
+        # Build messages from conversation history if provided
+        if conversation_history:
+            messages = self._build_messages_from_history(conversation_history, provider)
+        else:
+            messages = self._build_messages(prompt, provider)
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
@@ -118,7 +196,7 @@ class AIService:
                     },
                     json={
                         "model": model,
-                        "messages": self._build_messages(prompt, provider),
+                        "messages": messages,
                         "temperature": 0.7
                     }
                 )
@@ -130,3 +208,17 @@ class AIService:
                 return f"API调用失败: {str(e)}"
             except Exception as e:
                 return f"处理失败: {str(e)}"
+    
+    def _build_messages_from_history(self, conversation_history: list, provider: str) -> list[dict[str, str]]:
+        """Build chat messages from conversation history."""
+        if provider == "ollama":
+            system_prompt = (
+                "你是中文阅读助手。必须仅使用简体中文回答。"
+                "不要输出英文句子，不要输出英文小标题；如需术语请给出中文解释。"
+            )
+        else:
+            system_prompt = "请使用简体中文回答，保持表达清晰、准确。"
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(conversation_history)
+        return messages

@@ -197,6 +197,52 @@
                 <div class="analysis-content markdown-content" v-html="panelAnalysisHtml"></div>
             </div>
             
+            <div id="discussion-chat-area" v-show="panelMode === 'discussion'">
+                <div class="conversation-warnings" v-if="conversationWarnings.length > 0">
+                    <div class="warning-item" v-for="warning in conversationWarnings">
+                        ⚠️ [[ warning ]]
+                    </div>
+                </div>
+                
+                <div class="conversation-container">
+                    <div class="message-bubble" v-for="message in conversationHistory" 
+                         :class="message.role === 'user' ? 'user-message' : 'assistant-message'">
+                        <div class="message-role">[[ message.role === 'user' ? '您' : 'AI助手' ]]</div>
+                        <div class="message-content markdown-content" v-html="formatMessage(message.content)"></div>
+                    </div>
+                    
+                    <div class="message-bubble assistant-message loading" v-if="discussionLoading">
+                        <div class="message-role">AI助手</div>
+                        <div class="message-content">思考中...</div>
+                    </div>
+                </div>
+                
+                <div class="discussion-input-area">
+                    <textarea id="discussion-textarea" ref="discussionTextarea" 
+                              v-model="discussionInput" 
+                              placeholder="输入您的问题或评论..." 
+                              @keydown.enter.exact.prevent="sendDiscussionMessage"
+                              rows="3"></textarea>
+                    <div class="discussion-input-actions">
+                        <button class="btn btn-secondary" @click="clearDiscussionInput" :disabled="discussionInput.length === 0">
+                            清空
+                        </button>
+                        <button class="btn btn-primary" @click="sendDiscussionMessage" 
+                                :disabled="discussionInput.length === 0 || discussionLoading">
+                            发送
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="conversation-stats" v-if="conversationHistory.length > 0">
+                    对话长度: [[ conversationHistory.length ]] 条消息
+                    <button class="btn btn-secondary btn-small" @click="summarizeDiscussion" 
+                            :disabled="discussionLoading">
+                        总结对话
+                    </button>
+                </div>
+            </div>
+            
             <div id="comment-input-area" v-show="panelMode === 'comment'">
                 <label class="comment-label">你的笔记:</label>
                 <textarea id="comment-textarea" ref="commentTextarea" v-model="commentText" placeholder="在这里写下你的想法、笔记或评论..."></textarea>
@@ -231,6 +277,15 @@
             </button>
             <button class="btn btn-secondary" @click="closePanel">
                 取消
+            </button>
+        </div>
+        
+        <div class="panel-actions" v-show="showDiscussionActions">
+            <button class="btn btn-primary" :disabled="saveBtnDisabled" @click="saveDiscussionSummary" v-show="showSaveDiscussionBtn">
+                保存总结
+            </button>
+            <button class="btn btn-secondary" @click="closePanel">
+                关闭
             </button>
         </div>
     </div>
