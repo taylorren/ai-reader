@@ -30,6 +30,7 @@
     <div id="sidebar">
         <div class="sidebar-sticky-header">
             <a href="/" class="nav-home">← 返回图书馆</a>
+            <button class="sidebar-toggle-btn" @click="toggleSidebar" title="收起目录">⟨</button>
             <div class="nav-header">{{ book.metadata.title }}</div>
         </div>
 
@@ -53,6 +54,9 @@
 
         {{ render_toc(book.toc) }}
     </div>
+
+    <!-- Sidebar expand handle (shown when sidebar is hidden) -->
+    <button class="sidebar-expand-btn" v-show="!sidebarOpen" @click="toggleSidebar" title="显示目录">⟩ 目录</button>
 
     <!-- Main Content - Center -->
     <div id="main">
@@ -182,8 +186,9 @@
     <!-- Right Panel - AI Analysis -->
     <div id="ai-panel" v-show="panelOpen" style="display: none;">
         <div class="panel-header">
-            <span class="panel-close" @click="closePanel">&times;</span>
+            <span class="panel-close" :class="{ 'panel-close-thinking': aiThinking }" @click="requestClosePanel" title="关闭面板">&times;</span>
             <h3 class="panel-title">[[ panelTitle ]]</h3>
+            <span class="panel-thinking" v-show="aiThinking">⏳ 思考中…</span>
         </div>
         
         <div class="panel-content">
@@ -318,12 +323,13 @@
     </div>
 
     <!-- Confirm Dialog -->
-    <div class="confirm-overlay" v-show="confirmVisible" style="display: none;" @click.self="onConfirmNo">
+    <div class="confirm-overlay" v-show="confirmVisible" style="display: none;" @click.self="onConfirmCancel">
         <div class="confirm-box">
             <p>[[ confirmMessage ]]</p>
             <div class="confirm-actions">
-                <button class="btn btn-secondary" @click="onConfirmNo">取消</button>
-                <button class="btn btn-primary" @click="onConfirmYes" style="background: #f44336; color: white;">删除</button>
+                <button class="btn btn-secondary" @click="onConfirmCancel">取消</button>
+                <button class="btn btn-primary" v-show="confirmNoText" @click="onConfirmNo" style="background: #f44336; color: white;">[[ confirmNoText ]]</button>
+                <button class="btn btn-primary" @click="onConfirmYes" :style="confirmYesDanger ? 'background: #f44336; color: white;' : ''">[[ confirmYesText ]]</button>
             </div>
         </div>
     </div>

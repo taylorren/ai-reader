@@ -27,6 +27,9 @@ createApp({
             // Settings dropdown
             showSettingsDropdown: false,
 
+            // TOC sidebar visibility (persisted)
+            sidebarOpen: true,
+
             // SPA chapter navigation
             loadingChapter: false,
             totalChapters: 0,
@@ -49,6 +52,7 @@ createApp({
         }
 
         this.initializeProviderUI();        // PanelMixin
+        this.restoreSidebarState();
         this.loadSavedHighlights();
         this.restoreScrollPosition();
         this.loadSavedSettings();
@@ -67,6 +71,7 @@ createApp({
         });
 
         this.$nextTick(() => {
+            if (!this.sidebarOpen) return;
             const activeLink = document.querySelector('.toc-link.active');
             if (activeLink) {
                 const sidebar = document.getElementById('sidebar');
@@ -75,7 +80,54 @@ createApp({
         });
     },
 
+    watch: {
+        sidebarOpen: {
+            immediate: true,
+            handler() {
+                this.$nextTick(() => this.applySidebarClass());
+            },
+        },
+    },
+
     methods: {
+        // ---- TOC sidebar toggle ----
+
+        restoreSidebarState() {
+            const saved = localStorage.getItem('sidebarOpen');
+            if (saved !== null) {
+                this.sidebarOpen = saved === 'true';
+            } else {
+                // Default: hide the TOC on small/portrait screens (pads, tablets)
+                const isSmall = window.innerWidth <= 1024;
+                const isPortrait = window.innerHeight > window.innerWidth;
+                this.sidebarOpen = !(isSmall || isPortrait);
+            }
+        },
+
+        toggleSidebar() {
+            this.sidebarOpen = !this.sidebarOpen;
+            try {
+                localStorage.setItem('sidebarOpen', String(this.sidebarOpen));
+            } catch (e) { /* storage unavailable */ }
+            if (this.sidebarOpen) {
+                // Re-center the active TOC entry after the sidebar becomes visible
+                this.$nextTick(() => {
+                    const activeLink = document.querySelector('.toc-link.active');
+                    if (activeLink) {
+                        const sidebar = document.getElementById('sidebar');
+                        sidebar.scrollTop = activeLink.offsetTop - (sidebar.clientHeight / 2) + (activeLink.offsetHeight / 2);
+                    }
+                });
+            }
+        },
+
+        applySidebarClass() {
+            // The mount root (#reader-app) can't carry Vue bindings, so toggle
+            // the CSS class directly on the DOM element.
+            const appEl = document.getElementById('reader-app');
+            if (appEl) appEl.classList.toggle('sidebar-collapsed', !this.sidebarOpen);
+        },
+
         // ---- Scroll progress (debounced) ----
 
         _debouncedSaveProgress() {

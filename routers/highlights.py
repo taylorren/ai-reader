@@ -3,8 +3,11 @@ Highlight routes: CRUD endpoints and highlights view page.
 """
 from datetime import datetime
 
+import bleach
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
+from markdown_it import MarkdownIt
+from markupsafe import Markup
 from pydantic import BaseModel
 
 from database import Highlight
@@ -12,6 +15,40 @@ from database import Highlight
 from . import get_asset_version, get_db, load_book_cached
 
 router = APIRouter()
+
+# ---- Server-side Markdown rendering (mirrors the client's `marked` config: gfm + breaks) ----
+
+_markdown = (
+    MarkdownIt("commonmark", {"html": False, "breaks": True, "linkify": True})
+    .enable("table")
+    .enable("strikethrough")
+)
+
+# HTML tags/attrs we allow through after rendering. Raw HTML is disabled upstream
+# by markdown-it ({html: False}), so bleach here is defence-in-depth.
+_ALLOWED_TAGS = [
+    "p", "br", "ul", "ol", "li", "strong", "em", "del",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "pre", "code", "blockquote", "a", "hr",
+    "table", "thead", "tbody", "tr", "th", "td",
+]
+_ALLOWED_ATTRS = {
+    "a": ["href", "title"],
+    "th": ["align"],
+    "td": ["align"],
+}
+
+
+def render_markdown(text: str) -> str:
+    """Render user/AI-supplied Markdown to safe, sanitized HTML.
+
+    Returns an empty string for falsy input so callers can rely on the result
+    being empty when there is nothing to render.
+    """
+    if not text:
+        return ""
+    raw_html = _markdown.render(text)
+    return bleach.clean(raw_html, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
 
 
 class HighlightRequest(BaseModel):
@@ -85,6 +122,10 @@ async def view_highlights(book_id: str, request: Request):
                     "response": None,
                     "analysis_created_at": None,
                 })
+
+        for h in highlights_with_analyses:
+            if h.get("response"):
+                h["response_html"] = Markup(render_markdown(h["response"]))
 
         highlights_with_analyses.sort(key=lambda x: x["created_at"], reverse=True)
 

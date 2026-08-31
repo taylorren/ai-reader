@@ -8,7 +8,6 @@ createApp({
     },
     mounted() {
         this.loadTheme();
-        this.renderMarkdown();
         this.exposeLegacyHandlers();
     },
     methods: {
@@ -29,20 +28,6 @@ createApp({
             const isDark = document.body.classList.toggle("dark-mode");
             icon.textContent = isDark ? "☀️" : "🌙";
             localStorage.setItem("reader-theme", isDark ? "dark" : "light");
-        },
-        normalizeSavedAnalysisContent(text) {
-            if (!text) return "";
-            return text.replace(/^(Using:\s*(?:🏠 Local|☁️ Cloud))(?=\S)/m, "$1\n\n");
-        },
-        renderMarkdown() {
-            marked.setOptions({ breaks: true, gfm: true });
-            document.querySelectorAll(".analysis-content").forEach((element) => {
-                const type = element.getAttribute("data-type");
-                if (type === "fact_check" || type === "discussion") {
-                    const text = this.normalizeSavedAnalysisContent(element.textContent);
-                    element.innerHTML = marked.parse(text);
-                }
-            });
         },
         filterHighlights(type, event) {
             this.currentFilter = type;

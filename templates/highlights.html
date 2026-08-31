@@ -199,7 +199,7 @@
                         AI Analysis:
                         {% endif %}
                     </div>
-                    <div class="analysis-content" data-type="{{ item.analysis_type }}">{{ item.response }}</div>
+                    <div class="analysis-content" data-type="{{ item.analysis_type }}">{{ item.response_html }}</div>
                 </div>
                 {% endif %}
                 
@@ -220,7 +220,6 @@
         </div>
         {% endif %}
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="/static/js/highlights-app.js?v={{ asset_version }}"></script>
 </body>

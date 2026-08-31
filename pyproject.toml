@@ -13,4 +13,6 @@ dependencies = [
     "httpx>=0.27.0",
     "python-multipart>=0.0.6",
     "pypinyin>=0.54.0",
+    "markdown-it-py",
+    "bleach",
 ]

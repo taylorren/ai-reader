@@ -47,12 +47,19 @@ window.PanelMixin = {
             confirmVisible: false,
             confirmMessage: '',
             confirmResolve: null,
+            confirmYesText: '删除',
+            confirmYesDanger: true,
+            confirmNoText: '',
 
             // Interactive Discussion
             conversationHistory: [],
             discussionInput: '',
             discussionLoading: false,
             conversationWarnings: [],
+            discussionSaved: false,
+
+            // Traditional analysis in-flight flag
+            analysisLoading: false,
             showDiscussionActions: false,
             showSaveDiscussionBtn: false,
             discussionSummary: '',
@@ -71,6 +78,11 @@ window.PanelMixin = {
                 serverOverride: this.serverProviderOverride,
             };
         },
+
+        // True while any AI request (analysis or discussion) is in flight
+        aiThinking() {
+            return this.analysisLoading || this.discussionLoading;
+        },
     },
 
     methods: {
@@ -88,10 +100,13 @@ window.PanelMixin = {
             }, 2500);
         },
 
-        showConfirm(message) {
+        showConfirm(message, options = {}) {
+            this.confirmMessage = message;
+            this.confirmYesText = options.yesText || '删除';
+            this.confirmYesDanger = options.yesDanger !== false;
+            this.confirmNoText = options.noText || '';
+            this.confirmVisible = true;
             return new Promise((resolve) => {
-                this.confirmMessage = message;
-                this.confirmVisible = true;
                 this.confirmResolve = resolve;
             });
         },
@@ -106,6 +121,11 @@ window.PanelMixin = {
             if (this.confirmResolve) this.confirmResolve(false);
         },
 
+        onConfirmCancel() {
+            this.confirmVisible = false;
+            if (this.confirmResolve) this.confirmResolve(null);
+        },
+
         // ================================================================
         //  Panel open / close / toggle
         // ================================================================
@@ -115,6 +135,14 @@ window.PanelMixin = {
         },
 
         closePanel() {
+            // Don't dismiss while AI is thinking — the in-flight result would be lost.
+            if (this.aiThinking) {
+                const msg = 'AI 正在思考中，请稍候…';
+                if (!(this.toastVisible && this.toastMessage === msg)) {
+                    this.showToast(msg, 'info');
+                }
+                return;
+            }
             this.panelOpen = false;
             window.getSelection().removeAllRanges();
 
@@ -134,6 +162,42 @@ window.PanelMixin = {
             this.discussionLoading = false;
             this.conversationWarnings = [];
             this.discussionSummary = '';
+            this.discussionSaved = false;
+        },
+
+        // User-initiated dismiss (X button, ESC, click-outside).
+        // Blocks while AI is thinking; prompts to save an unsaved discussion.
+        async requestClosePanel() {
+            // Don't dismiss while AI is thinking — the in-flight result would be lost.
+            if (this.aiThinking) {
+                const msg = 'AI 正在思考中，请稍候…';
+                if (!(this.toastVisible && this.toastMessage === msg)) {
+                    this.showToast(msg, 'info');
+                }
+                return;
+            }
+
+            // Re-entrancy guard: a confirm prompt is already open
+            if (this.confirmVisible) return;
+
+            // Unsaved interactive discussion → prompt to save before discarding
+            if (this.panelMode === 'discussion' && !this.discussionSaved && this.conversationHistory.length > 0) {
+                const choice = await this.showConfirm('讨论尚未保存，保存并关闭吗？', {
+                    yesText: '保存并关闭',
+                    yesDanger: false,
+                    noText: '不保存关闭',
+                });
+                if (choice === true) {
+                    const saved = await this.saveDiscussionAndClose();
+                    if (saved) this.closePanel();
+                } else if (choice === false) {
+                    this.closePanel();
+                }
+                // null → user cancelled, stay in panel
+                return;
+            }
+
+            this.closePanel();
         },
 
         togglePanel() {
@@ -256,6 +320,7 @@ window.PanelMixin = {
             this.discussionInput = '';
             this.conversationWarnings = [];
             this.discussionSummary = '';
+            this.discussionSaved = false;
             this.$nextTick(() => {
                 this.$refs.discussionTextarea?.focus();
                 this.scrollToBottom();
@@ -298,6 +363,7 @@ window.PanelMixin = {
             const providerLabel = this.aiSettings.provider === 'ollama' ? 'Local' : 'Cloud';
             this.panelAnalysisHtml = `<div class="loading">正在分析中... (${providerLabel})</div>`;
             this.saveBtnDisabled = true;
+            this.analysisLoading = true;
 
             try {
                 const aiRes = await fetch('/api/ai/analyze', {
@@ -327,6 +393,8 @@ window.PanelMixin = {
             } catch (error) {
                 console.error('Error:', error);
                 this.panelAnalysisHtml = '发生错误: ' + error.message;
+            } finally {
+                this.analysisLoading = false;
             }
         },
 
@@ -602,6 +670,7 @@ window.PanelMixin = {
             this.conversationHistory = [];
             this.conversationWarnings = [];
             this.discussionSummary = '';
+            this.discussionSaved = false;
             this.showDiscussionActions = false;
             this.showSaveDiscussionBtn = false;
 
@@ -741,9 +810,24 @@ window.PanelMixin = {
                 return;
             }
 
-            this.saveBtnDisabled = true;
             this.saveBtnText = '保存中...';
+            const ok = await this._persistDiscussion(this.discussionSummary);
+            if (ok) {
+                this.discussionSaved = true;
+                this.saveBtnText = '已保存';
+                this.showToast('讨论总结已保存', 'success');
+            } else {
+                this.saveBtnText = '保存总结';
+            }
+        },
 
+        // Persist a discussion as a highlight + discussion analysis. Returns true on success.
+        async _persistDiscussion(content) {
+            if (!content) {
+                this.showToast('没有可保存的内容', 'info');
+                return false;
+            }
+            this.saveBtnDisabled = true;
             try {
                 const highlightRes = await fetch('/api/highlight', {
                     method: 'POST',
@@ -757,6 +841,9 @@ window.PanelMixin = {
                     }),
                 });
                 const highlightData = await highlightRes.json();
+                if (!highlightData.highlight_id) {
+                    throw new Error(highlightData.detail || 'Failed to create highlight');
+                }
                 this.currentHighlightId = highlightData.highlight_id;
 
                 const saveRes = await fetch('/api/ai/save', {
@@ -766,28 +853,46 @@ window.PanelMixin = {
                         highlight_id: this.currentHighlightId,
                         analysis_type: 'discussion',
                         prompt: this.selectedText,
-                        response: this.discussionSummary,
+                        response: content,
                     }),
                 });
                 const saveData = await saveRes.json();
-
                 if (saveData.status === 'success') {
                     this.currentAnalysisId = saveData.analysis_id;
                     this.showSaved = true;
-                    this.saveBtnText = '已保存';
-                    this.showToast('讨论总结已保存', 'success');
                     await this.loadSavedHighlights();
-                } else {
-                    this.saveBtnDisabled = false;
-                    this.saveBtnText = '保存失败';
-                    setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
+                    return true;
                 }
+                this.saveBtnDisabled = false;
+                this.showToast('保存失败', 'error');
+                return false;
             } catch (error) {
                 console.error('Save discussion error:', error);
                 this.saveBtnDisabled = false;
-                this.saveBtnText = '保存失败';
-                setTimeout(() => { this.saveBtnText = '保存到数据库'; }, 2000);
+                this.showToast('保存失败', 'error');
+                return false;
             }
+        },
+
+        // Save the discussion (summary if available, otherwise the raw transcript) and close.
+        async saveDiscussionAndClose() {
+            let content = this.discussionSummary;
+            let savedSummary = false;
+            if (!content) {
+                content = this.conversationHistory
+                    .map((m) => `${m.role === 'user' ? '我' : 'AI助手'}: ${m.content}`)
+                    .join('\n\n');
+            } else {
+                savedSummary = true;
+            }
+            if (!content) return false;
+
+            const ok = await this._persistDiscussion(content);
+            if (ok) {
+                this.discussionSaved = true;
+                this.showToast(savedSummary ? '讨论总结已保存' : '讨论已保存(原文)', 'success');
+            }
+            return ok;
         },
 
         clearDiscussionInput() {
@@ -838,8 +943,8 @@ window.PanelMixin = {
                 if (this.panelOpen || isContextMenuOpen) {
                     e.preventDefault();
                     e.stopPropagation();
-                    this.closePanel();
                     this.hideContextMenu();
+                    this.requestClosePanel();
                 }
             });
 
@@ -852,7 +957,7 @@ window.PanelMixin = {
                     !e.target.closest('#toggle-panel-btn') &&
                     !e.target.closest('.saved-highlight') &&
                     !e.target.closest('[data-highlight-id]')) {
-                    this.closePanel();
+                    this.requestClosePanel();
                 }
             });
         },
