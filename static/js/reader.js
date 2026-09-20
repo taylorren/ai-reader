@@ -14,11 +14,11 @@ createApp({
             // Book
             bookId: '',
             chapterIndex: 0,
-            savedScroll: 0,
+            savedPercent: 0,
+            savedAnchor: null,
             targetHighlightId: '',
             spineMap: {},
             savedHighlights: [],
-            currentScrollPosition: 0,
 
             // AI provider (shared with PanelMixin)
             serverProviderOverride: null,
@@ -41,7 +41,15 @@ createApp({
         if (readerDataEl) {
             this.bookId = readerDataEl.dataset.bookId || '';
             this.chapterIndex = Number(readerDataEl.dataset.chapterIndex || 0);
-            this.savedScroll = Number(readerDataEl.dataset.savedScroll || 0);
+            this.savedPercent = Number(readerDataEl.dataset.savedPercent || 0);
+            const rawAnchor = readerDataEl.dataset.savedAnchor || '';
+            if (rawAnchor) {
+                try {
+                    this.savedAnchor = JSON.parse(rawAnchor);
+                } catch (e) {
+                    console.warn('Failed to parse saved anchor:', e);
+                }
+            }
             this.targetHighlightId = readerDataEl.dataset.targetHighlightId || '';
             try {
                 this.spineMap = JSON.parse(readerDataEl.dataset.spineMap || '{}');
@@ -138,7 +146,6 @@ createApp({
         },
 
         _debounceScrollHandler() {
-            this.currentScrollPosition = Math.round(document.getElementById('main').scrollTop);
             this._debouncedSaveProgress();
         },
 
@@ -197,8 +204,8 @@ createApp({
                 bookContent.innerHTML = newContent.innerHTML;
                 this.chapterIndex = chapterIndex;
                 this.targetHighlightId = '';
-                this.savedScroll = 0;
-                this.currentScrollPosition = 0;
+                this.savedPercent = 0;
+                this.savedAnchor = null;
 
                 // Scroll main to top
                 const mainEl = document.getElementById('main');
@@ -564,27 +571,164 @@ createApp({
         },
 
         async saveProgress() {
-            return fetch(
-                `/api/progress?book_id=${encodeURIComponent(this.bookId)}&chapter_index=${this.chapterIndex}&scroll_position=${this.currentScrollPosition}`,
-                { method: 'POST', keepalive: true }
-            ).catch(error => console.error('Failed to save progress:', error));
+            const pos = this.computeReadingPosition();
+            if (!pos) return Promise.resolve();
+
+            const params = new URLSearchParams({
+                book_id: this.bookId,
+                chapter_index: this.chapterIndex,
+                scroll_percent: pos.percent.toFixed(4),
+            });
+            if (pos.anchor) params.set('anchor', JSON.stringify(pos.anchor));
+
+            return fetch(`/api/progress?${params.toString()}`, {
+                method: 'POST',
+                keepalive: true,
+            }).catch(error => console.error('Failed to save progress:', error));
+        },
+
+        // ---- Position computation (device-independent) ----
+
+        computeReadingPosition() {
+            const main = document.getElementById('main');
+            const content = document.getElementById('book-content');
+            if (!main || !content) return null;
+
+            const scrollable = main.scrollHeight - main.clientHeight;
+            const percent = scrollable > 0
+                ? Math.min(1, Math.max(0, main.scrollTop / scrollable)) : 0;
+
+            return { percent, anchor: this._computeAnchor(main, content) };
+        },
+
+        // Anchor = identity of the text element at the bottom of the viewport
+        // (the last line the reader has seen), as a path of
+        // [tag, nth-of-type index] steps from #book-content.
+        _computeAnchor(main, content) {
+            const mainRect = main.getBoundingClientRect();
+            let element = null;
+
+            // Preferred: caret position just above the bottom edge.
+            const x = mainRect.left + Math.min(80, main.clientWidth / 2);
+            const y = mainRect.bottom - 40;
+            if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(x, y);
+                if (range && content.contains(range.startContainer)) {
+                    element = range.startContainer.parentElement;
+                }
+            } else if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(x, y);
+                if (pos && content.contains(pos.offsetNode)) {
+                    element = pos.offsetNode.parentElement;
+                }
+            }
+            if (!element || element === content) {
+                element = this._lastVisibleElement(content, mainRect);
+            }
+            if (!element) return null;
+
+            const path = this._elementPath(element, content);
+            if (!path.length) return null;
+            return { p: path, o: 0 };
+        },
+
+        _lastVisibleElement(content, mainRect) {
+            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+            let node;
+            let last = null;
+            while ((node = walker.nextNode())) {
+                if (!node.textContent.trim()) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                const rect = range.getBoundingClientRect();
+                if (rect.bottom > mainRect.top && rect.top < mainRect.bottom) {
+                    last = node.parentElement;
+                }
+            }
+            return last;
+        },
+
+        _elementPath(element, root) {
+            const path = [];
+            let current = element;
+            while (current && current !== root) {
+                let index = 1;
+                let sibling = current.previousElementSibling;
+                while (sibling) {
+                    if (sibling.tagName === current.tagName) index++;
+                    sibling = sibling.previousElementSibling;
+                }
+                path.unshift([current.tagName.toLowerCase(), index]);
+                current = current.parentElement;
+            }
+            return path;
+        },
+
+        _resolvePath(path, root) {
+            let current = root;
+            for (const [tag, index] of path) {
+                if (!current) return null;
+                const matches = current.querySelectorAll(':scope > ' + tag);
+                current = matches[index - 1] || null;
+            }
+            return current;
         },
 
         restoreScrollPosition() {
             if (this.targetHighlightId) return;
-            if (this.savedScroll <= 0) return;
+            if (!this.savedAnchor && !(this.savedPercent > 0)) return;
 
-            const mainElement = document.getElementById('main');
+            const main = document.getElementById('main');
+            if (!main) return;
+
             let attempts = 0;
             const restore = () => {
-                mainElement.scrollTop = this.savedScroll;
-                this.currentScrollPosition = this.savedScroll;
-                if (mainElement.scrollTop < this.savedScroll - 10 && attempts < 5) {
+                let restored = false;
+                if (this.savedAnchor) restored = this._restoreFromAnchor(main);
+                if (!restored && this.savedPercent > 0) {
+                    restored = this._restoreFromPercent(main);
+                }
+                if (restored) {
+                    if (!this._positionToastShown) {
+                        this._positionToastShown = true;
+                        // Position is anchored at the bottom of the viewport
+                        // (the last line seen), so the hint appears at the
+                        // bottom, just below that line.
+                        this.showToast('已回到上次阅读的位置', 'info');
+                    }
+                    return;
+                }
+                if (!restored && attempts < 5) {
                     attempts++;
                     setTimeout(restore, 200);
                 }
             };
             setTimeout(restore, 100);
+        },
+
+        _restoreFromPercent(main) {
+            const scrollable = main.scrollHeight - main.clientHeight;
+            if (scrollable <= 0) return false; // content not laid out yet
+            main.scrollTop = this.savedPercent * scrollable;
+            return true;
+        },
+
+        _restoreFromAnchor(main) {
+            const content = document.getElementById('book-content');
+            if (!content) return false;
+
+            const element = this._resolvePath(this.savedAnchor.p, content);
+            if (!element) return false;
+
+            const elementBottom = element.getBoundingClientRect().bottom
+                - main.getBoundingClientRect().top
+                + main.scrollTop;
+            const scrollable = main.scrollHeight - main.clientHeight;
+            // Place the last-read line ~100px above the viewport bottom, so
+            // the "resume reading" toast (bottom) doesn't cover it.
+            const target = elementBottom - main.clientHeight + 100;
+            main.scrollTop = scrollable > 0 ? Math.min(Math.max(target, 0), scrollable) : 0;
+            return true;
         },
 
         // ---- Reading Settings ----

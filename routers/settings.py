@@ -50,11 +50,16 @@ async def update_settings(settings: SettingsUpdate):
 
 
 @router.post("/api/progress")
-async def save_reading_progress(book_id: str, chapter_index: int, scroll_position: int = 0):
-    """Save reading progress."""
+async def save_reading_progress(
+    book_id: str,
+    chapter_index: int,
+    scroll_percent: float = 0.0,
+    anchor: str = "",
+):
+    """Save reading progress (scroll percent + optional text anchor JSON)."""
     db = get_db()
     try:
-        db.save_progress(book_id, chapter_index, scroll_position)
+        db.save_progress(book_id, chapter_index, scroll_percent, anchor or None)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

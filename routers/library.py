@@ -12,11 +12,11 @@ from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from . import (
     BOOKS_DIR,
     build_grouped_books,
-    estimate_book_word_count,
     estimate_reading_time,
     format_reading_time,
     format_word_count,
     get_asset_version,
+    get_book_word_count,
     get_db,
     load_book_cached,
     rewrite_chapter_image_paths,
@@ -56,7 +56,7 @@ async def library_view(request: Request):
                 if is_completed:
                     progress_percent = 100
 
-                estimated_word_count = estimate_book_word_count(book)
+                estimated_word_count = get_book_word_count(item)
                 title_sort_key = transliterate_for_sort(book.metadata.title)
                 title_group = title_group_key(book.metadata.title)
 
@@ -153,9 +153,11 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
 
     db = get_db()
     progress_data = db.get_progress(book_id)
-    saved_scroll = 0
+    saved_percent = 0.0
+    saved_anchor = ""
     if progress_data and progress_data['chapter_index'] == chapter_index:
-        saved_scroll = progress_data['scroll_position']
+        saved_percent = progress_data.get('scroll_percent') or 0.0
+        saved_anchor = progress_data.get('anchor') or ""
 
     target_highlight_id = request.query_params.get("highlight_id", "")
 
@@ -175,7 +177,8 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
         "spine_map": spine_map,
         "prev_idx": prev_idx,
         "next_idx": next_idx,
-        "saved_scroll": saved_scroll,
+        "saved_percent": saved_percent,
+        "saved_anchor": saved_anchor,
         "target_highlight_id": target_highlight_id,
         "asset_version": reader_asset_version,
     })
@@ -184,7 +187,11 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
 @router.post("/upload")
 async def upload_book(file: UploadFile = File(...)):
     """Upload and process an EPUB file."""
-    if not file.filename.endswith('.epub'):
+    raw_filename = file.filename or ""
+    # Only trust the basename: Starlette passes the multipart filename through
+    # unmodified, so it could contain path separators (path traversal).
+    safe_filename = os.path.basename(raw_filename.replace("\\", "/"))
+    if not safe_filename.endswith('.epub'):
         raise HTTPException(status_code=400, detail="Only EPUB files are supported")
 
     try:
@@ -192,7 +199,7 @@ async def upload_book(file: UploadFile = File(...)):
         temp_dir = str(BASE_DIR / "temp")
         os.makedirs(temp_dir, exist_ok=True)
 
-        temp_file_path = os.path.join(temp_dir, file.filename)
+        temp_file_path = os.path.join(temp_dir, safe_filename)
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
@@ -238,6 +245,8 @@ async def delete_book(book_id: str):
 
     shutil.rmtree(book_path)
     load_book_cached.cache_clear()
+    from . import estimate_book_word_count_cached
+    estimate_book_word_count_cached.cache_clear()
 
     return {
         "message": "Book deleted. Your highlights and analyses are preserved in the database.",

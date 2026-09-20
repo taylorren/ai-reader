@@ -42,15 +42,45 @@ This document outlines the key technical challenges we encountered and solved wh
 - `scrollTop` was always returning 0 when read directly
 - `beforeunload` event doesn't fire reliably
 - Need to track exact scroll position within chapters, not just chapter numbers
+- (2026-09) The same book is read across devices (desktop PC, Mac, iPad) over the
+  LAN — raw pixel offsets "float" because screen height, orientation, and font
+  size differ per device.
 
 **Solution**:
-- Use scroll event listener to continuously track `currentScrollPosition` variable
+- Use scroll event listener (debounced 1.5s) to trigger progress saves
 - Intercept navigation clicks with `preventDefault()` to ensure save completes before navigation
 - Add `pagehide` event as backup for mobile browsers
-- Store both chapter index and scroll position in database
+- Store chapter index in database
 - Implement retry mechanism for scroll restoration to handle content loading delays
+- **(2026-09) Device-independent position**: pixel offsets were replaced by
+  `scroll_percent` (fraction of scrollable height) plus a **text anchor**.
 
-**Code**: `templates/reader.html` - scroll tracking and `saveProgress()` function
+### Position semantics (decided 2026-09)
+
+**Definition: the reading position is the last line the reader has SEEN —
+i.e. the text at the bottom edge of the viewport.** Readers stop when they
+reach the bottom of the screen, not the top; the top line is merely the
+oldest line still visible, not "where I stopped".
+
+Consequences, all derived from that definition:
+
+- The anchor captures the text element just above the bottom edge
+  (`caretRangeFromPoint` at `mainRect.bottom - 40px`; fallback: the last
+  visible text element, identified by a stable
+  `[tag, nth-of-type index]` path from `#book-content`).
+- On restore, the anchor's bottom edge is placed ~100px above the viewport
+  bottom: the line stays visible on any screen, and the "resume reading"
+  toast (bottom, 2.5s, "已回到上次阅读的位置") points at it without covering it.
+- Toast position and restore offset follow from the definition — bottom, not
+  top. (An earlier top-anchored variant was replaced after realizing readers
+  think in terms of the bottom of the page.)
+- `scroll_percent` remains the fallback when an anchor cannot be resolved
+  (e.g. chapter HTML changed); legacy pixel rows simply restore via percent.
+- Restoring slightly re-shows one or two lines already read — repeating is
+  safe; skipping ahead would not be.
+
+**Code**: `static/js/reader.js` (`computeReadingPosition`, `_computeAnchor`,
+`_restoreFromAnchor`), `database.py` (`save_progress`), `routers/settings.py`
 
 ## 5. Database Schema Migration
 
@@ -60,8 +90,11 @@ This document outlines the key technical challenges we encountered and solved wh
 - Created migration script that checks if column exists before adding
 - Used `ALTER TABLE ADD COLUMN` with `DEFAULT 0` for backward compatibility
 - Gracefully handles both new installations and existing databases
+- (2026-09) `init_db()` now also adds `scroll_percent REAL` and `anchor TEXT`
+  the same way. Migration runs lazily on the first database-touching request,
+  so a restart alone does not migrate until the app is actually used.
 
-**Code**: `migrate_progress.py`
+**Code**: `migrate_progress.py`, `database.py` (`init_db`)
 
 ## 6. AI Prompt Engineering for Reading Context
 

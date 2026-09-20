@@ -73,7 +73,9 @@ class Database:
                 chapter_index INTEGER NOT NULL,
                 scroll_position INTEGER DEFAULT 0,
                 is_completed INTEGER NOT NULL DEFAULT 0,
-                last_read_at TEXT NOT NULL
+                last_read_at TEXT NOT NULL,
+                scroll_percent REAL,
+                anchor TEXT
             )
         """)
 
@@ -82,6 +84,14 @@ class Database:
         if "is_completed" not in progress_columns:
             cursor.execute(
                 "ALTER TABLE reading_progress ADD COLUMN is_completed INTEGER NOT NULL DEFAULT 0"
+            )
+        if "scroll_percent" not in progress_columns:
+            cursor.execute(
+                "ALTER TABLE reading_progress ADD COLUMN scroll_percent REAL"
+            )
+        if "anchor" not in progress_columns:
+            cursor.execute(
+                "ALTER TABLE reading_progress ADD COLUMN anchor TEXT"
             )
 
         conn.commit()
@@ -248,22 +258,35 @@ class Database:
         conn.commit()
         conn.close()
 
-    def save_progress(self, book_id: str, chapter_index: int, scroll_position: int = 0):
-        """Save or update reading progress for a book."""
+    def save_progress(
+        self,
+        book_id: str,
+        chapter_index: int,
+        scroll_percent: float = 0.0,
+        anchor: Optional[str] = None,
+    ):
+        """Save or update reading progress for a book.
+
+        Position is stored as a scroll percentage plus an optional text
+        anchor (JSON), so it survives different screen sizes and devices.
+        The legacy pixel-based scroll_position column is no longer written.
+        """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         cursor.execute("""
             INSERT INTO reading_progress (
-                book_id, chapter_index, scroll_position, is_completed, last_read_at
+                book_id, chapter_index, scroll_position, is_completed,
+                last_read_at, scroll_percent, anchor
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(book_id) DO UPDATE SET
                 chapter_index = excluded.chapter_index,
-                scroll_position = excluded.scroll_position,
-                is_completed = excluded.is_completed,
+                scroll_percent = excluded.scroll_percent,
+                anchor = excluded.anchor,
                 last_read_at = excluded.last_read_at
-        """, (book_id, chapter_index, scroll_position, 0, datetime.now().isoformat()))
+        """, (book_id, chapter_index, 0, 0, datetime.now().isoformat(),
+              scroll_percent, anchor))
 
         conn.commit()
         conn.close()
@@ -275,7 +298,8 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT chapter_index, scroll_position, is_completed FROM reading_progress
+            SELECT chapter_index, scroll_percent, anchor, is_completed
+            FROM reading_progress
             WHERE book_id = ?
         """, (book_id,))
 
@@ -295,22 +319,19 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT chapter_index, scroll_position FROM reading_progress WHERE book_id = ?",
+            "SELECT chapter_index FROM reading_progress WHERE book_id = ?",
             (book_id,),
         )
         result = cursor.fetchone()
-
-        if result:
-            chapter_index, scroll_position = result
-        else:
-            chapter_index, scroll_position = 0, 0
+        chapter_index = result[0] if result else 0
 
         cursor.execute(
             """
             INSERT INTO reading_progress (
-                book_id, chapter_index, scroll_position, is_completed, last_read_at
+                book_id, chapter_index, scroll_position, is_completed,
+                last_read_at, scroll_percent, anchor
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, 0, ?, ?, 0, NULL)
             ON CONFLICT(book_id) DO UPDATE SET
                 is_completed = excluded.is_completed,
                 last_read_at = excluded.last_read_at
@@ -318,7 +339,6 @@ class Database:
             (
                 book_id,
                 chapter_index,
-                scroll_position,
                 int(is_completed),
                 datetime.now().isoformat(),
             ),
