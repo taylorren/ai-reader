@@ -120,6 +120,29 @@ def estimate_book_word_count(book: Book) -> int:
     return total_latin_words + round(total_cjk_chars / 2)
 
 
+@lru_cache(maxsize=128)
+def estimate_book_word_count_cached(folder_name: str, pickle_mtime_ns: int) -> int:
+    """Cached word count per book folder, keyed by the pickle's mtime.
+
+    Scanning every chapter with regex is expensive (measured ~0.6s for a
+    dozen books), so the result is memoized until the pickle changes.
+    """
+    book = load_book_cached(folder_name)
+    if book is None:
+        return 0
+    return estimate_book_word_count(book)
+
+
+def get_book_word_count(folder_name: str) -> int:
+    """Return the (cached) estimated word count for a book folder."""
+    pickle_path = os.path.join(BOOKS_DIR, folder_name, "book.pkl")
+    try:
+        mtime_ns = os.stat(pickle_path).st_mtime_ns
+    except OSError:
+        return 0
+    return estimate_book_word_count_cached(folder_name, mtime_ns)
+
+
 def format_word_count(word_count: int) -> str:
     """Format a raw word count into a human-readable string like '123,456 words'."""
     return f"{word_count:,} words"
