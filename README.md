@@ -128,7 +128,7 @@ READER_HOST=0.0.0.0 READER_PORT=8123 uv run server.py
 ## Project Structure
 
 ```
-reader3/
+ai-reader/
 ├── reader3.py          # EPUB processor
 ├── server.py           # Web server
 ├── database.py         # SQLite operations
@@ -138,9 +138,14 @@ reader3/
 │       ├── book.pkl
 │       └── images/
 ├── templates/          # HTML templates
+├── static/             # CSS & JS (served as-is, no build step)
 ├── reader_data.db      # SQLite database
 └── .env                # API configuration
 ```
+
+The frontend is server-rendered Jinja templates plus plain JS and Vue loaded
+from CDN — there is no separate frontend build step (`npm`/`node` are not
+required to run this app).
 
 ## Data Management
 
