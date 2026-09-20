@@ -63,7 +63,8 @@
         <div id="reader-data"
              data-book-id="{{ book_id }}"
              data-chapter-index="{{ chapter_index }}"
-             data-saved-scroll="{{ saved_scroll }}"
+             data-saved-percent="{{ saved_percent }}"
+               data-saved-anchor="{{ saved_anchor }}"
                data-target-highlight-id="{{ target_highlight_id }}"
              data-spine-map='{{ spine_map | tojson }}'
              data-total-chapters="{{ book.spine|length }}"
@@ -351,6 +352,7 @@
 </div>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="/static/js/panel.js?v={{ asset_version }}"></script>
     <script src="/static/js/reader.js?v={{ asset_version }}"></script>
 </body>

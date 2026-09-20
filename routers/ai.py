@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ai_service import AIServiceError
 from database import AIAnalysis
 
 from . import _runtime_settings, get_ai_service, get_db
@@ -76,12 +77,15 @@ async def analyze_text(req: AIRequest):
     if provider not in ("ollama", "ollama_cloud"):
         raise HTTPException(status_code=400, detail="Invalid AI provider")
 
-    if req.analysis_type == "fact_check":
-        response = await service.fact_check(req.selected_text, req.context, provider=provider)
-    elif req.analysis_type == "discussion":
-        response = await service.discuss(req.selected_text, req.context, provider=provider)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid analysis type")
+    try:
+        if req.analysis_type == "fact_check":
+            response = await service.fact_check(req.selected_text, req.context, provider=provider)
+        elif req.analysis_type == "discussion":
+            response = await service.discuss(req.selected_text, req.context, provider=provider)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid analysis type")
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
     return {"response": response, "provider_used": provider, "status": "success"}
 

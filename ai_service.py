@@ -7,6 +7,10 @@ import httpx
 from typing import Optional, List, Dict
 
 
+class AIServiceError(Exception):
+    """Raised when an AI API call fails (network, HTTP, or parse error)."""
+
+
 class AIService:
     """Handles AI API calls for Ollama local and Ollama Cloud providers."""
 
@@ -176,7 +180,7 @@ class AIService:
         """Make API call to OpenAI-compatible endpoint."""
         provider = (provider or "ollama").lower()
         if provider not in ("ollama", "ollama_cloud"):
-            return "不支持的AI提供商。"
+            raise AIServiceError(f"不支持的AI提供商: {provider}")
 
         base_url, api_key, model = self._get_connection_params(provider, ollama_model)
         
@@ -205,9 +209,9 @@ class AIService:
                 return data["choices"][0]["message"]["content"]
             
             except httpx.HTTPError as e:
-                return f"API调用失败: {str(e)}"
+                raise AIServiceError(f"AI API调用失败: {e}") from e
             except Exception as e:
-                return f"处理失败: {str(e)}"
+                raise AIServiceError(f"AI 处理失败: {e}") from e
     
     def _build_messages_from_history(self, conversation_history: list, provider: str) -> list[dict[str, str]]:
         """Build chat messages from conversation history."""

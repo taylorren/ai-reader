@@ -1,3 +1,17 @@
+// Sanitize HTML before it is bound with v-html. AI/markdown output is untrusted;
+// DOMPurify strips scripts, event handlers, and dangerous attributes.
+function sanitizeHtml(html) {
+    if (window.DOMPurify) {
+        return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+    }
+    console.warn('DOMPurify not loaded; rendering unsanitized HTML');
+    return html;
+}
+
+function renderMarkdown(markdown) {
+    return sanitizeHtml(marked.parse(markdown ?? ''));
+}
+
 // Panel mixin — all AI panel, context menu, toast/confirm, and save/delete logic.
 // Mixed into the main Vue app in reader.js.
 
@@ -384,7 +398,7 @@ window.PanelMixin = {
                     const providerUsed = aiData.provider_used === 'ollama' ? '🏠 Local' : '☁️ Cloud';
                     this.panelAnalysisHtml =
                         `<div class="provider-badge" style="font-size: 0.85em; color: #999; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;">Using: ${providerUsed}</div>` +
-                        marked.parse(aiData.response);
+                        renderMarkdown(aiData.response);
                     this.saveBtnDisabled = false;
                     this._renderMathInPanel();
                 } else {
@@ -392,7 +406,7 @@ window.PanelMixin = {
                 }
             } catch (error) {
                 console.error('Error:', error);
-                this.panelAnalysisHtml = '发生错误: ' + error.message;
+                this.panelAnalysisHtml = renderMarkdown('发生错误: ' + error.message);
             } finally {
                 this.analysisLoading = false;
             }
@@ -433,7 +447,7 @@ window.PanelMixin = {
                     this.panelMode = 'analysis';
                     this.panelAnalysisTypeLabel =
                         analysis.analysis_type === 'fact_check' ? '解释说明' : '深入讨论';
-                    this.panelAnalysisHtml = marked.parse(
+                    this.panelAnalysisHtml = renderMarkdown(
                         this.normalizeSavedAnalysisContent(analysis.response)
                     );
                     this.showPanelActions = true;
@@ -902,7 +916,7 @@ window.PanelMixin = {
 
         formatMessage(content) {
             if (!content) return '';
-            return marked.parse(content);
+            return renderMarkdown(content);
         },
 
         scrollToBottom() {
