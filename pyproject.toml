@@ -16,3 +16,8 @@ dependencies = [
     "markdown-it-py",
     "bleach",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
