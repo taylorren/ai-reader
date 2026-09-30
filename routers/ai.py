@@ -122,14 +122,18 @@ async def start_interactive_discussion(req: InteractiveDiscussionRequest):
 
     try:
         response = await service.discuss_interactive(req.selected_text, provider=provider)
+        starter_user_message = f"请简要概括并展开讨论以下选中文本：\n\n{req.selected_text}"
         return {
             "response": response, 
             "provider_used": provider, 
             "status": "success",
             "conversation_history": [
+                {"role": "user", "content": starter_user_message},
                 {"role": "assistant", "content": response}
             ]
         }
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -150,18 +154,23 @@ async def continue_interactive_discussion(req: ContinueDiscussionRequest):
         raise HTTPException(status_code=400, detail="Invalid AI provider")
 
     try:
-        # Add user message to conversation history
+        # Add user message to conversation history (deduplicating if client already pushed it)
         conversation_history = [
             {"role": msg.role, "content": msg.content} 
             for msg in req.conversation_history
         ]
-        conversation_history.append({"role": "user", "content": req.user_message})
+        if not (
+            conversation_history
+            and conversation_history[-1].get("role") == "user"
+            and conversation_history[-1].get("content") == req.user_message
+        ):
+            conversation_history.append({"role": "user", "content": req.user_message})
         
         # Prepare context from conversation history (use sliding window for long conversations)
         context_window = 10  # Last 10 messages for context
         if len(conversation_history) > context_window:
-            # Keep first message (overview) and last N messages
-            context_history = [conversation_history[0]] + conversation_history[-context_window:]
+            # Keep initial starter messages (first 2) and last N messages
+            context_history = conversation_history[:2] + conversation_history[-context_window:]
         else:
             context_history = conversation_history
         
@@ -192,6 +201,8 @@ async def continue_interactive_discussion(req: ContinueDiscussionRequest):
             "message_count": message_count,
             "warnings": warnings
         }
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -231,6 +242,8 @@ async def summarize_discussion(req: SummarizeDiscussionRequest):
             "status": "success",
             "original_message_count": len(conversation_history)
         }
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

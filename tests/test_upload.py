@@ -69,3 +69,9 @@ def test_upload_accepts_normal_name(client, monkeypatch):
     )
     assert resp.status_code == 200, resp.text
     assert os.path.basename(recorded[0][2]) == "My Book.epub"
+
+
+def test_read_chapter_missing_book_returns_404(client):
+    resp = client.get("/read/non-existent-book/chapter1.html")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Book not found"

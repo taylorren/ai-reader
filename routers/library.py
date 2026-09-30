@@ -122,10 +122,13 @@ async def serve_image(book_id: str, image_name: str):
 @router.get("/read/{book_id}/{chapter_ref:path}", response_class=HTMLResponse)
 async def read_chapter(request: Request, book_id: str, chapter_ref: str):
     """Render chapter by numeric index or by chapter filename."""
+    book = load_book_cached(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
     try:
         chapter_index = int(chapter_ref)
     except ValueError as exc:
-        book = load_book_cached(book_id)
         chapter_index = None
         for idx, item in enumerate(book.spine):
             if item.href == chapter_ref or item.href.endswith(chapter_ref):
@@ -136,10 +139,6 @@ async def read_chapter(request: Request, book_id: str, chapter_ref: str):
                 status_code=404,
                 detail=f"Chapter file '{chapter_ref}' not found",
             ) from exc
-
-    book = load_book_cached(book_id)
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
 
     if chapter_index < 0 or chapter_index >= len(book.spine):
         raise HTTPException(status_code=404, detail="Chapter not found")

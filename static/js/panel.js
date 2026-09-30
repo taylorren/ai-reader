@@ -305,6 +305,8 @@ window.PanelMixin = {
             this.commentText = '';
             this.showPanelActions = false;
             this.showCommentActions = true;
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
             this.showSaveCommentBtn = true;
             this.showUpdateCommentBtn = false;
             this.showDeleteCommentBtn = false;
@@ -317,6 +319,8 @@ window.PanelMixin = {
             this.panelMode = 'analysis';
             this.showPanelActions = true;
             this.showCommentActions = false;
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
             this.showSaveBtn = true;
             this.showDeleteBtn = false;
             this.panelTitle = actionType === 'fact_check' ? '📋 解释说明' : '💡 深入讨论';
@@ -429,6 +433,8 @@ window.PanelMixin = {
             this.selectedText = highlight.selected_text;
             this.panelSelectedText = highlight.selected_text;
             this.showSaved = true;
+            this.showDiscussionActions = false;
+            this.showSaveDiscussionBtn = false;
 
             if (highlight.analyses && highlight.analyses.length > 0) {
                 const analysis = highlight.analyses[0];
@@ -701,14 +707,15 @@ window.PanelMixin = {
                 });
                 const data = await res.json();
 
-                if (data.status === 'success') {
+                if (res.ok && data.status === 'success') {
                     this.conversationHistory = data.conversation_history || [];
                     this._renderMathInPanel();
                     this.$nextTick(() => this.scrollToBottom());
                 } else {
+                    const errDetail = data.detail || '抱歉，启动讨论时出现了问题。请重试。';
                     this.conversationHistory = [{
                         role: 'assistant',
-                        content: '抱歉，启动讨论时出现了问题。请重试。'
+                        content: errDetail
                     }];
                 }
             } catch (error) {
@@ -750,15 +757,16 @@ window.PanelMixin = {
                 });
                 const data = await res.json();
 
-                if (data.status === 'success') {
+                if (res.ok && data.status === 'success') {
                     this.conversationHistory = data.conversation_history || [];
                     this.conversationWarnings = data.warnings || [];
                     this._renderMathInPanel();
                     this.$nextTick(() => this.scrollToBottom());
                 } else {
+                    const errDetail = data.detail || '抱歉，回复时出现了问题。请重试。';
                     this.conversationHistory.push({
                         role: 'assistant',
-                        content: '抱歉，回复时出现了问题。请重试。'
+                        content: errDetail
                     });
                 }
             } catch (error) {
@@ -792,7 +800,7 @@ window.PanelMixin = {
                 });
                 const data = await res.json();
 
-                if (data.status === 'success') {
+                if (res.ok && data.status === 'success') {
                     this.discussionSummary = data.summary;
                     this.showDiscussionActions = true;
                     this.showSaveDiscussionBtn = true;
@@ -808,7 +816,7 @@ window.PanelMixin = {
                     this._renderMathInPanel();
                     this.$nextTick(() => this.scrollToBottom());
                 } else {
-                    this.showToast('总结失败，请重试', 'error');
+                    this.showToast(data.detail || '总结失败，请重试', 'error');
                 }
             } catch (error) {
                 console.error('Discussion summarize error:', error);
