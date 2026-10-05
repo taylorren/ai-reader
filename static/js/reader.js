@@ -334,7 +334,12 @@ createApp({
             const savedSize = localStorage.getItem('reader-font-size');
             const savedHeight = localStorage.getItem('reader-line-height');
 
-            if (savedFont) bookContent.style.fontFamily = savedFont;
+            if (savedFont) {
+                // Stored value is now a font *key*, not a CSS stack; resolve it via
+                // the button's data-font-family so chapter navigation keeps the font.
+                const fontBtn = document.querySelector(`.settings-option[data-font="${savedFont}"]`);
+                if (fontBtn) bookContent.style.fontFamily = fontBtn.dataset.fontFamily;
+            }
             if (savedSize) bookContent.style.fontSize = savedSize + 'px';
             if (savedHeight) bookContent.style.lineHeight = savedHeight;
         },
@@ -771,15 +776,24 @@ createApp({
             if (toggle) toggle.classList.toggle('active', enabled);
         },
 
-        setFont(fontFamily, event) {
-            document.getElementById('book-content').style.fontFamily = fontFamily;
-            localStorage.setItem('reader-font', fontFamily);
-            document.querySelectorAll('.settings-option[data-font]').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            if (event && event.target) {
-                event.target.classList.add('active');
+        setFont(fontKey, event) {
+            const content = document.getElementById('book-content');
+            if (!content) return;
+            // Resolve the CSS stack from the button so the markup stays the single
+            // source of truth; only the stable key is persisted.
+            let family = null;
+            if (event && event.target && event.target.dataset) {
+                family = event.target.dataset.fontFamily || null;
             }
+            if (!family) {
+                const match = document.querySelector(`.settings-option[data-font="${fontKey}"]`);
+                family = match ? match.dataset.fontFamily : null;
+            }
+            if (family) content.style.fontFamily = family;
+            localStorage.setItem('reader-font', fontKey);
+            document.querySelectorAll('.settings-option[data-font]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.font === fontKey);
+            });
         },
 
         setFontSize(size) {
@@ -805,25 +819,28 @@ createApp({
             this.setPaperMode(savedPaperMode === 'true');
 
             if (savedFont) {
-                document.getElementById('book-content').style.fontFamily = savedFont;
-                const fontMap = {
+                // Pre-migration values stored the raw CSS stack; map those to the
+                // new stable keys once so existing selections survive.
+                const legacyFontMap = {
                     'Georgia, serif': 'georgia',
                     'Times New Roman, serif': 'times',
                     '-apple-system, sans-serif': 'sans',
                     'Arial, sans-serif': 'arial',
                     'Verdana, sans-serif': 'verdana',
-                    'Microsoft YaHei, sans-serif': 'yahei',
-                    'SimSun, serif': 'simsun',
                     'Consolas, monospace': 'mono',
+                    'Microsoft YaHei, sans-serif': 'heiti',
+                    'SimSun, serif': 'song',
                 };
-                const fontType = fontMap[savedFont];
-                if (fontType) {
-                    document.querySelectorAll('.settings-option[data-font]').forEach(btn => {
-                        btn.classList.remove('active');
-                        if (btn.getAttribute('data-font') === fontType) {
-                            btn.classList.add('active');
-                        }
+                const fontKey = legacyFontMap[savedFont] || savedFont;
+                const btn = document.querySelector(`.settings-option[data-font="${fontKey}"]`);
+                if (btn) {
+                    document.getElementById('book-content').style.fontFamily = btn.dataset.fontFamily;
+                    document.querySelectorAll('.settings-option[data-font]').forEach(b => {
+                        b.classList.toggle('active', b === btn);
                     });
+                    if (fontKey !== savedFont) {
+                        localStorage.setItem('reader-font', fontKey);
+                    }
                 }
             }
 

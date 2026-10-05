@@ -89,6 +89,14 @@
         body.paper-mode .toc-link.active {
             color: #9c4f2e;
         }
+        body.paper-mode .chapter-nav.sticky {
+            background: #f7f3e8;
+            border-bottom-color: #e4dbc8;
+        }
+        body.dark-mode.paper-mode .chapter-nav.sticky {
+            background: #26211b;
+            border-bottom-color: #43392f;
+        }
         body.paper-mode .content-container {
             max-width: 780px;
             padding: 70px 64px;
@@ -173,6 +181,14 @@
             pointer-events: none;
             border-right: none;
         }
+        /* ---- Sidebar chevron icons (shared) ---- */
+        .sidebar-icon {
+            width: 15px;
+            height: 15px;
+            display: block;
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
         .sidebar-toggle-btn {
             position: absolute;
             top: 10px;
@@ -183,11 +199,16 @@
             color: #666;
             font-size: 0.9em;
             line-height: 1;
-            padding: 4px 8px;
+            padding: 5px 7px;
             cursor: pointer;
             z-index: 11;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
         .sidebar-toggle-btn:hover { background: #e9ecef; color: #000; }
+        .sidebar-toggle-btn:hover .sidebar-icon-collapse { transform: translateX(-2px); }
         .sidebar-expand-btn {
             position: fixed;
             top: 12px;
@@ -202,8 +223,13 @@
             padding: 8px 10px;
             cursor: pointer;
             box-shadow: 2px 2px 6px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
         .sidebar-expand-btn:hover { background: #e9ecef; color: #000; }
+        .sidebar-expand-btn:hover .sidebar-icon-expand { transform: translateX(2px); }
         body.dark-mode .sidebar-toggle-btn { border-color: #505050; color: #999; background: transparent; }
         body.dark-mode .sidebar-toggle-btn:hover { background: #3d3d3d; color: #e0e0e0; }
         body.dark-mode .sidebar-expand-btn { background: #2d2d2d; border-color: #404040; color: #b0b0b0; }
@@ -236,7 +262,9 @@
         /* Content Styling */
         .book-content { transition: opacity 0.12s ease; }
         .book-content img { max-width: 100%; height: auto; display: block; margin: 20px auto; }
-        .book-content h1, .book-content h2, .book-content h3 { font-family: -apple-system, sans-serif; margin-top: 1.5em; color: #333; }
+        /* No font-family here on purpose: headings should inherit the reader's
+           chosen font instead of being pinned to the system UI face. */
+        .book-content h1, .book-content h2, .book-content h3 { margin-top: 1.5em; color: #333; }
         .book-content p { margin-bottom: 1.5em; text-align: justify; }
 
         /* Navigation Footer */
@@ -325,6 +353,18 @@
         .settings-option { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; font-size: 0.85em; transition: all 0.2s; font-family: -apple-system, sans-serif; }
         .settings-option:hover { background: #f8f9fa; }
         .settings-option.active { background: #3498db; color: white; border-color: #3498db; }
+        /* Render each picker button in its own face so 黑体/宋体/楷体/仿宋 are
+           visually distinguishable before the reader picks one. */
+        .settings-option[data-font="georgia"] { font-family: Georgia, serif; }
+        .settings-option[data-font="times"] { font-family: "Times New Roman", serif; }
+        .settings-option[data-font="sans"] { font-family: -apple-system, sans-serif; }
+        .settings-option[data-font="arial"] { font-family: Arial, sans-serif; }
+        .settings-option[data-font="verdana"] { font-family: Verdana, sans-serif; }
+        .settings-option[data-font="mono"] { font-family: Consolas, monospace; }
+        .settings-option[data-font="heiti"] { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif; }
+        .settings-option[data-font="song"] { font-family: "Songti SC", SimSun, "Noto Serif CJK SC", "Source Han Serif SC", serif; }
+        .settings-option[data-font="kai"] { font-family: "Kaiti SC", KaiTi, STKaiti, "AR PL UKai CN", "Noto Serif CJK SC", serif; }
+        .settings-option[data-font="fangsong"] { font-family: FangSong, STFangsong, "FangSong_GB2312", "Noto Serif CJK SC", serif; }
         .settings-slider { width: 100%; }
         
         /* Provider Toggle Switch */
@@ -422,21 +462,16 @@
         .modal-body h1, .modal-body h2, .modal-body h3 { font-family: -apple-system, sans-serif; margin-top: 1.5em; color: #333; }
         .modal-body p { margin-bottom: 1.5em; }
 
+        /* NOTE: keep only layout tweaks here. The paper sheet background and the
+           #main backdrop must NOT be reset, otherwise portrait (<=900px) screens
+           fall back to plain white and lose the paper effect entirely. */
         @media (max-width: 900px) {
             body.paper-mode .content-container {
                 max-width: 100%;
                 padding: 42px 22px;
-                background: transparent;
-                box-shadow: none;
             }
             body.paper-mode .book-content p {
                 text-indent: 1em;
-            }
-            body.paper-mode #main {
-                background: #fff;
-            }
-            body.dark-mode.paper-mode #main {
-                background: #1a1a1a;
             }
         }
 
