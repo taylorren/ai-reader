@@ -30,7 +30,12 @@
     <div id="sidebar">
         <div class="sidebar-sticky-header">
             <a href="/" class="nav-home">← 返回图书馆</a>
-            <button class="sidebar-toggle-btn" @click="toggleSidebar" title="收起目录">⟨</button>
+            <button class="sidebar-toggle-btn" @click="toggleSidebar" title="收起目录" aria-label="收起目录">
+                <svg class="sidebar-icon sidebar-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+            </button>
             <div class="nav-header">{{ book.metadata.title }}</div>
         </div>
 
@@ -56,7 +61,13 @@
     </div>
 
     <!-- Sidebar expand handle (shown when sidebar is hidden) -->
-    <button class="sidebar-expand-btn" v-show="!sidebarOpen" @click="toggleSidebar" title="显示目录">⟩ 目录</button>
+    <button class="sidebar-expand-btn" v-show="!sidebarOpen" @click="toggleSidebar" title="显示目录" aria-label="显示目录">
+        <svg class="sidebar-icon sidebar-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18l6-6-6-6"/>
+        </svg>
+        <span>目录</span>
+    </button>
 
     <!-- Main Content - Center -->
     <div id="main">
@@ -133,14 +144,35 @@
                         <div class="settings-section">
                             <label class="settings-label">Font Family</label>
                             <div class="settings-options">
-                                <button class="settings-option active" @click="setFont('Georgia, serif', $event)" data-font="georgia">Georgia</button>
-                                <button class="settings-option" @click="setFont('Times New Roman, serif', $event)" data-font="times">Times</button>
-                                <button class="settings-option" @click="setFont('-apple-system, sans-serif', $event)" data-font="sans">Sans</button>
-                                <button class="settings-option" @click="setFont('Arial, sans-serif', $event)" data-font="arial">Arial</button>
-                                <button class="settings-option" @click="setFont('Verdana, sans-serif', $event)" data-font="verdana">Verdana</button>
-                                <button class="settings-option" @click="setFont('Microsoft YaHei, sans-serif', $event)" data-font="yahei">微软雅黑</button>
-                                <button class="settings-option" @click="setFont('SimSun, serif', $event)" data-font="simsun">宋体</button>
-                                <button class="settings-option" @click="setFont('Consolas, monospace', $event)" data-font="mono">Mono</button>
+                                <!-- Ordered English -> Chinese, sans -> serif -> mono.
+                                 Each button carries a stable key (data-font) plus the full
+                                 CSS stack (data-font-family); setFont() reads both from here,
+                                 so adding a font only means adding one button. -->
+                            <button class="settings-option active" @click="setFont('georgia', $event)"
+                                    data-font="georgia" data-font-family="Georgia, serif">Georgia</button>
+                            <button class="settings-option" @click="setFont('times', $event)"
+                                    data-font="times" data-font-family="'Times New Roman', serif">Times</button>
+                            <button class="settings-option" @click="setFont('sans', $event)"
+                                    data-font="sans" data-font-family="-apple-system, sans-serif">Sans</button>
+                            <button class="settings-option" @click="setFont('arial', $event)"
+                                    data-font="arial" data-font-family="Arial, sans-serif">Arial</button>
+                            <button class="settings-option" @click="setFont('verdana', $event)"
+                                    data-font="verdana" data-font-family="Verdana, sans-serif">Verdana</button>
+                            <button class="settings-option" @click="setFont('mono', $event)"
+                                    data-font="mono" data-font-family="Consolas, monospace">Mono</button>
+
+                            <button class="settings-option" @click="setFont('heiti', $event)"
+                                    data-font="heiti"
+                                    data-font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif">黑体族</button>
+                            <button class="settings-option" @click="setFont('song', $event)"
+                                    data-font="song"
+                                    data-font-family="'Songti SC', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', serif">宋体族</button>
+                            <button class="settings-option" @click="setFont('kai', $event)"
+                                    data-font="kai"
+                                    data-font-family="'Kaiti SC', KaiTi, STKaiti, 'AR PL UKai CN', 'Noto Serif CJK SC', serif">楷体</button>
+                            <button class="settings-option" @click="setFont('fangsong', $event)"
+                                    data-font="fangsong"
+                                    data-font-family="FangSong, STFangsong, 'FangSong_GB2312', 'Noto Serif CJK SC', serif">仿宋</button>
                             </div>
                         </div>
                         
