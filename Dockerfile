@@ -59,6 +59,9 @@ COPY routers/ ./routers/
 COPY templates/ ./templates/
 COPY static/ ./static/
 
+# Docker Hub renders this as the image description on the registry page.
+COPY README.md LICENSE ./
+
 # /app must be writable: uploads stage files into /app/temp, and reader3.py
 # runs with cwd=/app when processing an upload.
 RUN mkdir -p /app/temp /app/books /data \

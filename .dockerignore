@@ -47,3 +47,6 @@ deploy/
 *.md
 *.png
 .env.example
+
+# ...but Docker Hub renders the README from inside the image, so keep it.
+!README.md
