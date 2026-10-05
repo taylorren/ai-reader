@@ -1,0 +1,49 @@
+# Version control
+.git/
+.github/
+.gitignore
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Runtime data — never bake user data into the image
+books/
+!books/.gitkeep
+temp/
+reader_data.db
+reader_data.db-journal
+test.db
+*.db.backup
+backups/
+
+# Secrets
+.env
+
+# Exports / reports
+reader_data_*.json
+highlights_*.csv
+ai_analyses_*.csv
+report_*.txt
+
+# Node leftovers from an earlier frontend scaffold
+node_modules/
+package.json
+bun.lock
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Not needed at runtime
+tests/
+scripts/
+deploy/
+*.md
+*.png
+.env.example

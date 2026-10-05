@@ -2,6 +2,20 @@
 
 A lightweight, self-hosted EPUB reader with integrated AI analysis capabilities.
 
+## Credits
+
+This project is a derivative of **reader3** by Andrej Karpathy
+(https://github.com/karpathy/reader3), also MIT licensed. That project
+established the original implementation: the EPUB parser (`reader3.py`), the
+FastAPI server, and the reader/library web UI.
+
+This repository substantially extends that work — a rewritten server split
+into routers (library, highlights, AI, settings), AI-assisted fact-checking
+and interactive discussion, reading-progress and highlight persistence, and
+Docker packaging.
+
+Released under the MIT License — see [LICENSE](LICENSE).
+
 ## Features
 
 ### Reading Experience

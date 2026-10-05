@@ -9,6 +9,15 @@ wheels/
 # Virtual environments
 .venv
 
+# Leftovers from an earlier frontend scaffold
+node_modules/
+package.json
+bun.lock
+
+# Docker export artifact
+epub-ai-reader-*.tar
+epub-ai-reader-*.tar.gz
+
 # IDE settings
 .vscode/
 .idea/

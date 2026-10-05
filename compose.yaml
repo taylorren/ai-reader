@@ -1,0 +1,31 @@
+# Run on the NAS with:  docker compose up -d
+#
+# Both volumes are bind mounts so the data survives image rebuilds.
+# The container runs as uid 1000 (= the NAS `tr` account); if you bind-mount a
+# directory that `tr` does not own, chown it first or the app cannot write.
+
+services:
+  reader:
+    image: epub-ai-reader:1.0.0
+    container_name: epub-ai-reader
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    volumes:
+      # BOOKS_DIR = BASE_DIR/books  ->  /app/books
+      - ./books:/app/books
+      # Database() default "reader_data.db", relative to CWD (/data)
+      - ./data:/data
+      # Optional: drop a .env next to compose.yaml to configure Ollama.
+      # - ./.env:/app/.env:ro
+    environment:
+      READER_HOST: "0.0.0.0"
+      READER_PORT: "8123"
+      # Point at your Ollama host from inside the container.
+      # "host.docker.internal" works with `extra_hosts` below.
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-ollama}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama3}"
+      OLLAMA_CLOUD_MODEL: "${OLLAMA_CLOUD_MODEL:-gpt-oss:120b-cloud}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
